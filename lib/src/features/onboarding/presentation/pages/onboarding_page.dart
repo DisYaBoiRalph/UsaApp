@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../../../app/di/app_dependencies.dart';
@@ -29,6 +31,12 @@ class _OnboardingPageState extends State<OnboardingPage> {
     super.dispose();
   }
 
+  @override
+  void initState() {
+    super.initState();
+    Future.microtask(_checkExistingSetup);
+  }
+
   Future<void> _setupP2p() async {
     setState(() {
       _isSettingUp = true;
@@ -40,7 +48,13 @@ class _OnboardingPageState extends State<OnboardingPage> {
 
       // Request permissions
       setState(() => _setupStatus = 'Requesting permissions...');
-      await p2pService.checkAndRequestPermissions();
+      try {
+        await p2pService.checkAndRequestPermissions().timeout(
+          const Duration(seconds: 30),
+        );
+      } on TimeoutException {
+        _logger.info('Permission request timed out, continuing setup');
+      }
       await Future.delayed(const Duration(milliseconds: 500));
 
       // Enable services
@@ -58,9 +72,12 @@ class _OnboardingPageState extends State<OnboardingPage> {
           _setupComplete = true;
         });
         _logger.info('P2P setup completed successfully');
+        await _completeOnboarding();
+        return;
       } else {
         setState(() {
-          _setupStatus = 'Setup incomplete. You can configure this later in Settings.';
+          _setupStatus =
+              'Setup incomplete. You can configure this later in Settings.';
           _setupComplete = true;
         });
         _logger.info('P2P setup incomplete');
@@ -68,18 +85,41 @@ class _OnboardingPageState extends State<OnboardingPage> {
     } catch (e) {
       _logger.error('Error during P2P setup: $e');
       setState(() {
-        _setupStatus = 'Setup encountered an error. You can try again in Settings.';
+        _setupStatus =
+            'Setup encountered an error. You can try again in Settings.';
         _setupComplete = true;
       });
     } finally {
-      setState(() => _isSettingUp = false);
+      if (mounted) {
+        setState(() => _isSettingUp = false);
+      }
     }
+  }
+
+  Future<void> _checkExistingSetup() async {
+    final p2pService = AppDependencies.instance.p2pService;
+  final permissionsGranted = await p2pService
+    .areAllPermissionsGranted(requestIfMissing: false);
+    final servicesEnabled = await p2pService.areAllServicesEnabled();
+
+    if (!mounted || !(permissionsGranted && servicesEnabled)) {
+      return;
+    }
+
+    setState(() {
+      _setupComplete = true;
+      _setupStatus = 'Setup complete!';
+    });
+
+    await _completeOnboarding();
   }
 
   Future<void> _completeOnboarding() async {
     await OnboardingService().completeOnboarding();
     if (mounted) {
-      Navigator.of(context).pushReplacementNamed(HomePage.routeName);
+      Navigator.of(
+        context,
+      ).pushNamedAndRemoveUntil(HomePage.routeName, (route) => false);
     }
   }
 
@@ -122,9 +162,9 @@ class _OnboardingPageState extends State<OnboardingPage> {
           const SizedBox(height: 32),
           Text(
             'Welcome to OffChat',
-            style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
+            style: Theme.of(
+              context,
+            ).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold),
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 16),
@@ -141,24 +181,22 @@ class _OnboardingPageState extends State<OnboardingPage> {
   Widget _buildPermissionsExplanationPage() {
     final permissions = [
       _PermissionInfo(
-        icon: Icons.wifi,
-        title: 'Wi-Fi',
-        description: 'To discover and connect to nearby devices using Wi-Fi Direct.',
+        icon: Icons.location_on,
+        title: 'Location & Nearby Devices',
+        description:
+            'Needed on Android to scan for nearby peers over Wi-Fi Direct and Bluetooth.',
       ),
       _PermissionInfo(
         icon: Icons.bluetooth,
-        title: 'Bluetooth',
-        description: 'To discover nearby devices using Bluetooth Low Energy.',
+        title: 'Bluetooth Access',
+        description:
+            'Required to advertise your device and maintain peer connections.',
       ),
       _PermissionInfo(
-        icon: Icons.location_on,
-        title: 'Location',
-        description: 'Required by Android for Wi-Fi and Bluetooth scanning.',
-      ),
-      _PermissionInfo(
-        icon: Icons.folder,
-        title: 'Storage',
-        description: 'To send and receive files with other users.',
+        icon: Icons.sd_storage,
+        title: 'Media & Storage',
+        description:
+            'Allows sharing chats, media, and files with nearby devices.',
       ),
     ];
 
@@ -169,9 +207,9 @@ class _OnboardingPageState extends State<OnboardingPage> {
         children: [
           Text(
             'Permissions Needed',
-            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
+            style: Theme.of(
+              context,
+            ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 16),
@@ -181,37 +219,38 @@ class _OnboardingPageState extends State<OnboardingPage> {
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 24),
-          ...permissions.map((permission) => Padding(
-                padding: const EdgeInsets.only(bottom: 16),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Icon(
-                      permission.icon,
-                      color: Theme.of(context).colorScheme.primary,
+          ...permissions.map(
+            (permission) => Padding(
+              padding: const EdgeInsets.only(bottom: 16),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(
+                    permission.icon,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          permission.title,
+                          style: Theme.of(context).textTheme.titleMedium
+                              ?.copyWith(fontWeight: FontWeight.bold),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          permission.description,
+                          style: Theme.of(context).textTheme.bodyMedium,
+                        ),
+                      ],
                     ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            permission.title,
-                            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                  fontWeight: FontWeight.bold,
-                                ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            permission.description,
-                            style: Theme.of(context).textTheme.bodyMedium,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              )),
+                  ),
+                ],
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -226,11 +265,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
           if (_isSettingUp)
             const CircularProgressIndicator()
           else if (_setupComplete)
-            Icon(
-              Icons.check_circle,
-              size: 80,
-              color: Colors.green,
-            )
+            Icon(Icons.check_circle, size: 80, color: Colors.green)
           else
             Icon(
               Icons.settings_outlined,
@@ -240,9 +275,9 @@ class _OnboardingPageState extends State<OnboardingPage> {
           const SizedBox(height: 32),
           Text(
             _setupComplete ? 'Ready to Go!' : 'Setup P2P Connection',
-            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
+            style: Theme.of(
+              context,
+            ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 16),
@@ -260,7 +295,10 @@ class _OnboardingPageState extends State<OnboardingPage> {
               icon: const Icon(Icons.play_arrow),
               label: const Text('Start Setup'),
               style: ElevatedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 32,
+                  vertical: 16,
+                ),
               ),
             ),
           ],
@@ -322,7 +360,9 @@ class _OnboardingPageState extends State<OnboardingPage> {
             )
           else
             ElevatedButton(
-              onPressed: _setupComplete && !_isSettingUp ? _completeOnboarding : null,
+              onPressed: _setupComplete && !_isSettingUp
+                  ? _completeOnboarding
+                  : null,
               child: const Text('Get Started'),
             ),
         ],

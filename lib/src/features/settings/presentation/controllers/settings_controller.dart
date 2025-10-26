@@ -30,8 +30,9 @@ class SettingsController extends ChangeNotifier {
     notifyListeners();
 
     try {
-      await _p2pService.checkAndRequestPermissions();
-      _allPermissionsGranted = await _p2pService.areAllPermissionsGranted();
+    await _p2pService.checkAndRequestPermissions();
+    _allPermissionsGranted =
+      await _p2pService.areAllPermissionsGranted();
       _logger.info('Permissions setup completed: $_allPermissionsGranted');
     } catch (e) {
       _logger.error('Error setting up permissions: $e');
@@ -63,7 +64,8 @@ class SettingsController extends ChangeNotifier {
   /// Refresh the status of permissions and services.
   Future<void> refreshStatus() async {
     try {
-      _allPermissionsGranted = await _p2pService.areAllPermissionsGranted();
+    _allPermissionsGranted = await _p2pService
+      .areAllPermissionsGranted(requestIfMissing: false);
       _allServicesEnabled = await _p2pService.areAllServicesEnabled();
       notifyListeners();
     } catch (e) {

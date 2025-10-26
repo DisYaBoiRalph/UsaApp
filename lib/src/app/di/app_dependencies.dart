@@ -27,9 +27,8 @@ class AppDependencies {
     _sendMessage = SendMessage(_chatRepository);
     _watchMessages = WatchMessages(_chatRepository);
 
-    // Initialize P2P service
+    // Prepare P2P service (lazy initialization happens on demand)
     _p2pService = P2pService();
-    await _p2pService.initialize();
   }
 
   ChatController createChatController() {

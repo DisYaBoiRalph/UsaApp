@@ -69,8 +69,9 @@ class _ChatPageState extends State<ChatPage> {
               },
             ),
           ),
-          Padding(
-            padding: const EdgeInsets.all(16),
+          SafeArea(
+            top: false,
+            minimum: const EdgeInsets.all(16),
             child: Row(
               children: <Widget>[
                 Expanded(

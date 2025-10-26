@@ -9,6 +9,14 @@ import '../../features/settings/presentation/pages/settings_page.dart';
 class AppRouter {
   const AppRouter._();
 
+  static Map<String, WidgetBuilder> get routes => <String, WidgetBuilder>{
+    HomePage.routeName: (_) => const HomePage(),
+    OnboardingPage.routeName: (_) => const OnboardingPage(),
+    ChatPage.routeName: (_) => const ChatPage(),
+    ContactsPage.routeName: (_) => const ContactsPage(),
+    SettingsPage.routeName: (_) => const SettingsPage(),
+  };
+
   static Route<dynamic>? onGenerateRoute(RouteSettings settings) {
     switch (settings.name) {
       case OnboardingPage.routeName:
