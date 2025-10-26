@@ -98,8 +98,9 @@ class _OnboardingPageState extends State<OnboardingPage> {
 
   Future<void> _checkExistingSetup() async {
     final p2pService = AppDependencies.instance.p2pService;
-  final permissionsGranted = await p2pService
-    .areAllPermissionsGranted(requestIfMissing: false);
+    final permissionsGranted = await p2pService.areAllPermissionsGranted(
+      requestIfMissing: false,
+    );
     final servicesEnabled = await p2pService.areAllServicesEnabled();
 
     if (!mounted || !(permissionsGranted && servicesEnabled)) {

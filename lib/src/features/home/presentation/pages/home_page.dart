@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
-import '../../../chat/presentation/pages/chat_page.dart';
-import '../../../contacts/presentation/pages/contacts_page.dart';
+import '../../../chat/presentation/pages/conversation_mode_page.dart';
+import '../../../chat/presentation/pages/chats_library_page.dart';
 import '../../../settings/presentation/pages/settings_page.dart';
 
 class HomePage extends StatelessWidget {
@@ -21,22 +21,23 @@ class HomePage extends StatelessWidget {
           Text('Welcome to OffChat', style: theme.textTheme.headlineSmall),
           const SizedBox(height: 12),
           Text(
-            'Choose where you would like to start. You can explore contacts, tweak your settings, or jump right into conversations.',
+            'Choose where you would like to start. You can review saved chats, tweak your settings, or jump right into conversations.',
             style: theme.textTheme.bodyLarge,
           ),
           const SizedBox(height: 24),
           _DestinationTile(
-            icon: Icons.people_outline,
-            title: 'Contacts',
-            subtitle: 'Browse nearby peers and manage invitations.',
+            icon: Icons.history_toggle_off,
+            title: 'View Chats',
+            subtitle: 'Browse saved conversations, rename them, or clear logs.',
             onTap: () =>
-                Navigator.of(context).pushNamed(ContactsPage.routeName),
+                Navigator.of(context).pushNamed(ChatsLibraryPage.routeName),
           ),
           _DestinationTile(
             icon: Icons.message_outlined,
             title: 'Conversations',
             subtitle: 'Continue chatting with your current peers.',
-            onTap: () => Navigator.of(context).pushNamed(ChatPage.routeName),
+            onTap: () =>
+                Navigator.of(context).pushNamed(ConversationModePage.routeName),
           ),
           _DestinationTile(
             icon: Icons.settings_outlined,

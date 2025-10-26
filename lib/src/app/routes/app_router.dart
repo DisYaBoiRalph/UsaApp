@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 
+import '../../features/chat/domain/entities/conversation.dart';
 import '../../features/chat/presentation/pages/chat_page.dart';
-import '../../features/contacts/presentation/pages/contacts_page.dart';
+import '../../features/chat/presentation/pages/chats_library_page.dart';
+import '../../features/chat/presentation/pages/conversation_mode_page.dart';
 import '../../features/home/presentation/pages/home_page.dart';
 import '../../features/onboarding/presentation/pages/onboarding_page.dart';
 import '../../features/settings/presentation/pages/settings_page.dart';
@@ -12,8 +14,8 @@ class AppRouter {
   static Map<String, WidgetBuilder> get routes => <String, WidgetBuilder>{
     HomePage.routeName: (_) => const HomePage(),
     OnboardingPage.routeName: (_) => const OnboardingPage(),
-    ChatPage.routeName: (_) => const ChatPage(),
-    ContactsPage.routeName: (_) => const ContactsPage(),
+    ConversationModePage.routeName: (_) => const ConversationModePage(),
+    ChatsLibraryPage.routeName: (_) => const ChatsLibraryPage(),
     SettingsPage.routeName: (_) => const SettingsPage(),
   };
 
@@ -29,14 +31,26 @@ class AppRouter {
           builder: (_) => const HomePage(),
           settings: settings,
         );
-      case ChatPage.routeName:
+      case ConversationModePage.routeName:
         return MaterialPageRoute<void>(
-          builder: (_) => const ChatPage(),
+          builder: (_) => const ConversationModePage(),
           settings: settings,
         );
-      case ContactsPage.routeName:
+      case ChatPage.routeName:
+        final args = settings.arguments;
+        if (args is! Conversation) {
+          return MaterialPageRoute<void>(
+            builder: (_) => const ConversationModePage(),
+            settings: settings,
+          );
+        }
         return MaterialPageRoute<void>(
-          builder: (_) => const ContactsPage(),
+          builder: (_) => ChatPage(conversation: args),
+          settings: settings,
+        );
+      case ChatsLibraryPage.routeName:
+        return MaterialPageRoute<void>(
+          builder: (_) => const ChatsLibraryPage(),
           settings: settings,
         );
       case SettingsPage.routeName:

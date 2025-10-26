@@ -7,10 +7,12 @@
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:offchat/src/app/di/app_dependencies.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   setUpAll(() async {
     TestWidgetsFlutterBinding.ensureInitialized();
+    SharedPreferences.setMockInitialValues(const <String, Object>{});
     await AppDependencies.instance.init();
   });
 

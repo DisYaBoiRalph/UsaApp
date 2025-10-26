@@ -1,22 +1,35 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:offchat/src/app/di/app_dependencies.dart';
+import 'package:offchat/src/features/chat/domain/entities/conversation.dart';
 import 'package:offchat/src/features/chat/presentation/pages/chat_page.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
+  late Conversation conversation;
+
   setUpAll(() async {
     TestWidgetsFlutterBinding.ensureInitialized();
+    SharedPreferences.setMockInitialValues(const <String, Object>{});
     await AppDependencies.instance.init();
+  });
+
+  setUp(() async {
+    final store = AppDependencies.instance.conversationStore;
+    conversation = await store.createConversation('Test Conversation');
+  });
+
+  tearDown(() async {
+    final store = AppDependencies.instance.conversationStore;
+    await store.deleteConversation(conversation.id);
   });
 
   testWidgets('shows empty state initially', (WidgetTester tester) async {
     await tester.pumpWidget(
-      const MaterialApp(
-        home: ChatPage(),
-      ),
+      MaterialApp(home: ChatPage(conversation: conversation)),
     );
 
-    expect(find.text('Conversations'), findsOneWidget);
+    expect(find.text('Test Conversation'), findsOneWidget);
     expect(
       find.text('Start a conversation by sending a message.'),
       findsOneWidget,
@@ -25,15 +38,10 @@ void main() {
 
   testWidgets('sends a message', (WidgetTester tester) async {
     await tester.pumpWidget(
-      const MaterialApp(
-        home: ChatPage(),
-      ),
+      MaterialApp(home: ChatPage(conversation: conversation)),
     );
 
-    await tester.enterText(
-      find.byType(TextField),
-      'Hello, World!',
-    );
+    await tester.enterText(find.byType(TextField), 'Hello, World!');
     await tester.tap(find.byIcon(Icons.send));
     await tester.pumpAndSettle();
 
@@ -42,9 +50,7 @@ void main() {
 
   testWidgets('shows multiple messages', (WidgetTester tester) async {
     await tester.pumpWidget(
-      const MaterialApp(
-        home: ChatPage(),
-      ),
+      MaterialApp(home: ChatPage(conversation: conversation)),
     );
 
     // Send first message

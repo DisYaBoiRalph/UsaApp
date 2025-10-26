@@ -13,17 +13,25 @@ class SettingsPage extends StatefulWidget {
 
 class _SettingsPageState extends State<SettingsPage> {
   late final SettingsController _controller;
+  late final TextEditingController _displayNameController;
+  late final FocusNode _displayNameFocusNode;
 
   @override
   void initState() {
     super.initState();
     _controller = SettingsController();
+    _displayNameController = TextEditingController();
+    _displayNameFocusNode = FocusNode();
+    _controller.addListener(_syncDisplayNameField);
     _controller.refreshStatus();
   }
 
   @override
   void dispose() {
+    _controller.removeListener(_syncDisplayNameField);
     _controller.dispose();
+    _displayNameController.dispose();
+    _displayNameFocusNode.dispose();
     super.dispose();
   }
 
@@ -131,9 +139,68 @@ class _SettingsPageState extends State<SettingsPage> {
           const SizedBox(height: 24),
           const Divider(),
           const SizedBox(height: 16),
-          Text(
-            'Other Settings',
-            style: Theme.of(context).textTheme.titleLarge,
+          Text('Other Settings', style: Theme.of(context).textTheme.titleLarge),
+          const SizedBox(height: 8),
+          AnimatedBuilder(
+            animation: _controller,
+            builder: (context, _) {
+              final isSaving = _controller.isSavingDisplayName;
+              final helperText = _controller.displayName.trim().isEmpty
+                  ? 'Set a name so peers can recognize you.'
+                  : 'This is how your name appears to peers. Leave blank to reset.';
+              return Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Your Identity',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: _displayNameController,
+                        focusNode: _displayNameFocusNode,
+                        textCapitalization: TextCapitalization.words,
+                        decoration: InputDecoration(
+                          labelText: 'Display name',
+                          helperText: helperText,
+                        ),
+                        onSubmitted: (_) => _handleSaveDisplayName(),
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          FilledButton.icon(
+                            onPressed: isSaving
+                                ? null
+                                : () => _handleSaveDisplayName(),
+                            icon: isSaving
+                                ? const SizedBox(
+                                    width: 18,
+                                    height: 18,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
+                                  )
+                                : const Icon(Icons.save_outlined),
+                            label: Text(isSaving ? 'Saving…' : 'Save name'),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: SelectableText(
+                              'Device ID: ${_controller.deviceCode}',
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
           ),
           const SizedBox(height: 8),
           const ListTile(
@@ -141,13 +208,40 @@ class _SettingsPageState extends State<SettingsPage> {
             title: Text('Privacy'),
             subtitle: Text('Configure how peers discover you.'),
           ),
-          const ListTile(
-            leading: Icon(Icons.palette_outlined),
-            title: Text('Appearance'),
-            subtitle: Text('Adjust theme and accessibility.'),
-          ),
+          // const ListTile(
+          //   leading: Icon(Icons.palette_outlined),
+          //   title: Text('Appearance'),
+          //   subtitle: Text('Adjust theme and accessibility.'),
+          // ),
         ],
       ),
     );
+  }
+
+  void _syncDisplayNameField() {
+    if (!mounted) {
+      return;
+    }
+    final value = _controller.displayName;
+    if (_displayNameFocusNode.hasFocus) {
+      return;
+    }
+    if (_displayNameController.text != value) {
+      _displayNameController.text = value;
+    }
+  }
+
+  Future<void> _handleSaveDisplayName() async {
+    final trimmed = _displayNameController.text.trim();
+    await _controller.updateDisplayName(trimmed);
+    if (!mounted) {
+      return;
+    }
+    final message = trimmed.isEmpty
+        ? 'Display name reset to default.'
+        : 'Display name updated.';
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 }

@@ -7,8 +7,8 @@ import '../../../p2p/data/services/p2p_service.dart';
 /// Controller for managing P2P settings and setup.
 class SettingsController extends ChangeNotifier {
   SettingsController()
-      : _logger = const Logger('SettingsController'),
-        _p2pService = AppDependencies.instance.p2pService;
+    : _logger = const Logger('SettingsController'),
+      _p2pService = AppDependencies.instance.p2pService;
 
   final Logger _logger;
   final P2pService _p2pService;
@@ -17,12 +17,18 @@ class SettingsController extends ChangeNotifier {
   bool _isCheckingServices = false;
   bool _allPermissionsGranted = false;
   bool _allServicesEnabled = false;
+  bool _isSavingDisplayName = false;
+  String _displayName = '';
+  String _deviceCode = '';
 
   bool get isCheckingPermissions => _isCheckingPermissions;
   bool get isCheckingServices => _isCheckingServices;
   bool get allPermissionsGranted => _allPermissionsGranted;
   bool get allServicesEnabled => _allServicesEnabled;
   bool get isP2pReady => _allPermissionsGranted && _allServicesEnabled;
+  bool get isSavingDisplayName => _isSavingDisplayName;
+  String get displayName => _displayName;
+  String get deviceCode => _deviceCode;
 
   /// Check and request all necessary permissions.
   Future<void> setupPermissions() async {
@@ -30,9 +36,8 @@ class SettingsController extends ChangeNotifier {
     notifyListeners();
 
     try {
-    await _p2pService.checkAndRequestPermissions();
-    _allPermissionsGranted =
-      await _p2pService.areAllPermissionsGranted();
+      await _p2pService.checkAndRequestPermissions();
+      _allPermissionsGranted = await _p2pService.areAllPermissionsGranted();
       _logger.info('Permissions setup completed: $_allPermissionsGranted');
     } catch (e) {
       _logger.error('Error setting up permissions: $e');
@@ -64,12 +69,38 @@ class SettingsController extends ChangeNotifier {
   /// Refresh the status of permissions and services.
   Future<void> refreshStatus() async {
     try {
-    _allPermissionsGranted = await _p2pService
-      .areAllPermissionsGranted(requestIfMissing: false);
+      _allPermissionsGranted = await _p2pService.areAllPermissionsGranted(
+        requestIfMissing: false,
+      );
       _allServicesEnabled = await _p2pService.areAllServicesEnabled();
+      final identity = AppDependencies.instance.peerIdentity;
+      _displayName = identity.displayName;
+      _deviceCode = identity.id;
       notifyListeners();
     } catch (e) {
       _logger.error('Error refreshing status: $e');
+    }
+  }
+
+  Future<void> updateDisplayName(String name) async {
+    final trimmed = name.trim();
+    if (trimmed.isEmpty && _displayName.trim().isEmpty) {
+      return;
+    }
+
+    _isSavingDisplayName = true;
+    notifyListeners();
+
+    try {
+      await AppDependencies.instance.updatePeerDisplayName(trimmed);
+      final updatedIdentity = AppDependencies.instance.peerIdentity;
+      _displayName = updatedIdentity.displayName;
+      _deviceCode = updatedIdentity.id;
+    } catch (e) {
+      _logger.error('Error updating display name: $e');
+    } finally {
+      _isSavingDisplayName = false;
+      notifyListeners();
     }
   }
 }

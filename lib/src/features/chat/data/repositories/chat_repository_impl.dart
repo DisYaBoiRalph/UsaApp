@@ -11,16 +11,23 @@ class ChatRepositoryImpl implements ChatRepository {
   final ChatMessageDataSource _messageDataSource;
 
   @override
-  Future<void> sendMessage(ChatMessage message) {
+  Future<void> sendMessage(String conversationId, ChatMessage message) {
     final model = ChatMessageModel.fromEntity(message);
-    return _messageDataSource.saveMessage(model);
+    return _messageDataSource.saveMessage(conversationId, model);
   }
 
   @override
-  Stream<List<ChatMessage>> watchMessages() {
-    return _messageDataSource.watchMessages().map(
-      (models) =>
-          models.map((model) => model.toEntity()).toList(growable: false),
-    );
+  Stream<List<ChatMessage>> watchMessages(String conversationId) {
+    return _messageDataSource
+        .watchMessages(conversationId)
+        .map(
+          (models) =>
+              models.map((model) => model.toEntity()).toList(growable: false),
+        );
+  }
+
+  @override
+  Future<void> clearConversation(String conversationId) {
+    return _messageDataSource.clearConversation(conversationId);
   }
 }

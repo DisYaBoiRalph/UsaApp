@@ -1,0 +1,812 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_p2p_connection/flutter_p2p_connection.dart';
+
+import '../../../../app/di/app_dependencies.dart';
+import '../../../p2p/data/services/p2p_service.dart';
+import '../../../p2p/presentation/controllers/p2p_session_controller.dart';
+import '../../data/datasources/conversation_store.dart';
+import '../../domain/entities/conversation.dart';
+import 'chat_page.dart';
+
+class ConversationModePage extends StatefulWidget {
+  const ConversationModePage({super.key, P2pSessionController? controller})
+    : _controller = controller;
+
+  static const routeName = '/chat';
+
+  final P2pSessionController? _controller;
+
+  @override
+  State<ConversationModePage> createState() => _ConversationModePageState();
+}
+
+class _ConversationModePageState extends State<ConversationModePage> {
+  late final P2pSessionController _controller;
+  late final bool _ownsController;
+  late final ConversationStore _conversationStore;
+  Conversation? _selectedConversation;
+  bool _hasAutoOpenedForSession = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller =
+        widget._controller ??
+        AppDependencies.instance.createP2pSessionController();
+    _ownsController = widget._controller == null;
+    _conversationStore = AppDependencies.instance.conversationStore;
+  }
+
+  @override
+  void dispose() {
+    if (_ownsController) {
+      _controller.dispose();
+    }
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Conversations')),
+      body: AnimatedBuilder(
+        animation: _controller,
+        builder: (context, _) {
+          _scheduleAutoOpenIfNeeded();
+
+          return Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'How would you like to connect?',
+                  style: Theme.of(context).textTheme.headlineSmall,
+                ),
+                const SizedBox(height: 16),
+                Wrap(
+                  spacing: 12,
+                  runSpacing: 12,
+                  children: [
+                    ChoiceChip(
+                      label: const Text('Host on this device'),
+                      selected: _controller.role == P2pSessionRole.host,
+                      onSelected: _controller.isBusy
+                          ? null
+                          : (selected) {
+                              if (selected) {
+                                _controller.selectRole(P2pSessionRole.host);
+                              }
+                            },
+                    ),
+                    ChoiceChip(
+                      label: const Text('Join an existing host'),
+                      selected: _controller.role == P2pSessionRole.client,
+                      onSelected: _controller.isBusy
+                          ? null
+                          : (selected) {
+                              if (selected) {
+                                _controller.selectRole(P2pSessionRole.client);
+                              }
+                            },
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                if (_controller.isBusy) const LinearProgressIndicator(),
+                if (_controller.errorMessage != null) ...[
+                  const SizedBox(height: 12),
+                  Text(
+                    _controller.errorMessage!,
+                    style: Theme.of(context).textTheme.bodyMedium!.copyWith(
+                      color: Theme.of(context).colorScheme.error,
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 16),
+                Expanded(child: _buildModeContent(context)),
+                const SizedBox(height: 16),
+                SafeArea(
+                  top: false,
+                  left: false,
+                  right: false,
+                  minimum: const EdgeInsets.only(bottom: 16),
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: FilledButton.icon(
+                      icon: const Icon(Icons.chat_bubble_outline),
+                      label: const Text('Open conversation'),
+                      onPressed: _controller.hasActiveSession
+                          ? _openChat
+                          : null,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildModeContent(BuildContext context) {
+    final role = _controller.role;
+    if (role == P2pSessionRole.host) {
+      return _HostModeSection(controller: _controller);
+    }
+    if (role == P2pSessionRole.client) {
+      return _ClientModeSection(controller: _controller);
+    }
+
+    return Center(
+      child: Text(
+        'Select whether you want to host a conversation or join one nearby.',
+        style: Theme.of(context).textTheme.bodyLarge,
+        textAlign: TextAlign.center,
+      ),
+    );
+  }
+
+  Future<void> _openChat({bool preferActiveConversation = false}) async {
+    if (!_controller.hasActiveSession) {
+      return;
+    }
+
+    await _controller.waitForActiveConversationSync();
+
+    Conversation? conversation;
+
+    if (preferActiveConversation) {
+      final activeId = _controller.activeConversationId;
+      if (activeId != null) {
+        conversation = _findConversationById(activeId);
+        if (conversation == null) {
+          final ensured = await _conversationStore.ensureConversationExists(
+            id: activeId,
+            title: _controller.activeConversationTitle ?? 'Conversation',
+          );
+          conversation = ensured;
+        }
+      }
+    }
+
+    conversation ??= _selectedConversation;
+
+    conversation ??= await _showConversationPicker();
+    if (conversation == null) {
+      _refreshSelectedConversation();
+      return;
+    }
+
+    final conversationToOpen = conversation;
+    setState(() => _selectedConversation = conversationToOpen);
+    _controller.setActiveConversation(conversationToOpen);
+
+    if (!mounted) {
+      return;
+    }
+
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => ChatPage(
+          conversation: conversationToOpen,
+          p2pController: _controller,
+        ),
+      ),
+    );
+  }
+
+  void _scheduleAutoOpenIfNeeded() {
+    final hasSession = _controller.hasActiveSession;
+
+    if (!hasSession) {
+      _hasAutoOpenedForSession = false;
+      return;
+    }
+
+    final shouldAutoOpen =
+        _controller.role == P2pSessionRole.client &&
+        !_controller.isBusy &&
+        !_hasAutoOpenedForSession;
+
+    if (!shouldAutoOpen) {
+      return;
+    }
+
+    final activeConversationId = _controller.activeConversationId;
+    if (activeConversationId == null) {
+      return;
+    }
+
+    _hasAutoOpenedForSession = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      _openChat(preferActiveConversation: true);
+    });
+  }
+
+  Conversation? _findConversationById(String id) {
+    for (final conversation in _conversationStore.current) {
+      if (conversation.id == id) {
+        return conversation;
+      }
+    }
+    return null;
+  }
+
+  void _refreshSelectedConversation() {
+    final current = _selectedConversation;
+    if (current == null) {
+      return;
+    }
+
+    final matches = _conversationStore.current
+        .where((candidate) => candidate.id == current.id)
+        .toList();
+    if (matches.isEmpty) {
+      setState(() => _selectedConversation = null);
+      return;
+    }
+
+    final updated = matches.first;
+    if (updated.title != current.title) {
+      setState(() => _selectedConversation = updated);
+    }
+  }
+
+  Future<Conversation?> _showConversationPicker() async {
+    return showModalBottomSheet<Conversation>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (_) => _ConversationPickerSheet(
+        store: _conversationStore,
+        selectedConversationId: _selectedConversation?.id,
+      ),
+    );
+  }
+}
+
+class _ConversationPickerSheet extends StatefulWidget {
+  const _ConversationPickerSheet({
+    required this.store,
+    this.selectedConversationId,
+  });
+
+  final ConversationStore store;
+  final String? selectedConversationId;
+
+  @override
+  State<_ConversationPickerSheet> createState() =>
+      _ConversationPickerSheetState();
+}
+
+class _ConversationPickerSheetState extends State<_ConversationPickerSheet> {
+  bool _isCreating = false;
+  late final Stream<List<Conversation>> _conversationsStream;
+
+  @override
+  void initState() {
+    super.initState();
+    _conversationsStream = widget.store.watchAll();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(
+        left: 24,
+        right: 24,
+        top: 24,
+        bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          FilledButton.icon(
+            icon: _isCreating
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.add_comment_outlined),
+            label: Text(_isCreating ? 'Creating…' : 'Create new chat'),
+            onPressed: _isCreating ? null : _handleCreatePressed,
+          ),
+          const SizedBox(height: 24),
+          Text(
+            'Choose an existing conversation',
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            height: 300,
+            child: StreamBuilder<List<Conversation>>(
+              stream: _conversationsStream,
+              builder: (context, snapshot) {
+                final conversations = snapshot.data ?? widget.store.current;
+                if (conversations.isEmpty) {
+                  return const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 24),
+                    child: Center(
+                      child: Text('No conversations yet. Create a new one!'),
+                    ),
+                  );
+                }
+
+                return ListView.separated(
+                  shrinkWrap: true,
+                  itemCount: conversations.length,
+                  separatorBuilder: (_, __) => const SizedBox(height: 8),
+                  itemBuilder: (context, index) {
+                    final conversation = conversations[index];
+                    final isSelected =
+                        widget.selectedConversationId == conversation.id;
+                    return ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: Icon(
+                        isSelected
+                            ? Icons.radio_button_checked
+                            : Icons.radio_button_off,
+                      ),
+                      title: Text(conversation.title),
+                      subtitle: Text(
+                        'Updated ${_relativeTime(conversation.updatedAt)}',
+                      ),
+                      onTap: () => Navigator.of(context).pop(conversation),
+                      trailing: PopupMenuButton<_ConversationAction>(
+                        onSelected: (action) =>
+                            _onConversationAction(action, conversation),
+                        itemBuilder: (context) => const [
+                          PopupMenuItem<_ConversationAction>(
+                            value: _ConversationAction.rename,
+                            child: Text('Rename'),
+                          ),
+                          PopupMenuItem<_ConversationAction>(
+                            value: _ConversationAction.delete,
+                            child: Text('Delete'),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _handleCreatePressed() async {
+    final name = await _promptForName();
+    final trimmed = name?.trim() ?? '';
+    if (trimmed.isEmpty) {
+      return;
+    }
+
+    setState(() => _isCreating = true);
+    try {
+      final conversation = await widget.store.createConversation(trimmed);
+      if (!mounted) {
+        return;
+      }
+      Navigator.of(context).pop(conversation);
+    } finally {
+      if (mounted) {
+        setState(() => _isCreating = false);
+      }
+    }
+  }
+
+  Future<String?> _promptForName() async {
+    final controller = TextEditingController();
+    String currentText = '';
+    final result = await showDialog<String>(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, dialogSetState) {
+            return AlertDialog(
+              title: const Text('Create new chat'),
+              content: TextField(
+                controller: controller,
+                autofocus: true,
+                textInputAction: TextInputAction.done,
+                decoration: const InputDecoration(
+                  labelText: 'Conversation name',
+                ),
+                onChanged: (value) {
+                  dialogSetState(() => currentText = value.trim());
+                },
+                onSubmitted: (_) {
+                  final trimmedSubmit = controller.text.trim();
+                  if (trimmedSubmit.isEmpty) {
+                    return;
+                  }
+                  Navigator.of(context).pop(trimmedSubmit);
+                },
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text('Cancel'),
+                ),
+                FilledButton(
+                  onPressed: currentText.isEmpty
+                      ? null
+                      : () => Navigator.of(context).pop(currentText),
+                  child: const Text('Create'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+    controller.dispose();
+    return result;
+  }
+
+  String _relativeTime(DateTime timestamp) {
+    final difference = DateTime.now().difference(timestamp);
+    if (difference.inMinutes < 1) {
+      return 'just now';
+    }
+    if (difference.inHours < 1) {
+      return '${difference.inMinutes} min ago';
+    }
+    if (difference.inDays < 1) {
+      return '${difference.inHours} h ago';
+    }
+    return '${difference.inDays} day${difference.inDays > 1 ? 's' : ''} ago';
+  }
+
+  Future<void> _onConversationAction(
+    _ConversationAction action,
+    Conversation conversation,
+  ) async {
+    switch (action) {
+      case _ConversationAction.rename:
+        await _renameConversation(conversation);
+        break;
+      case _ConversationAction.delete:
+        await _confirmDeleteConversation(conversation);
+        break;
+    }
+  }
+
+  Future<void> _renameConversation(Conversation conversation) async {
+    final controller = TextEditingController(text: conversation.title);
+    String currentText = conversation.title.trim();
+    final result = await showDialog<String>(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, dialogSetState) {
+            return AlertDialog(
+              title: const Text('Rename chat'),
+              content: TextField(
+                controller: controller,
+                autofocus: true,
+                textInputAction: TextInputAction.done,
+                decoration: const InputDecoration(
+                  labelText: 'Conversation name',
+                ),
+                onChanged: (value) {
+                  dialogSetState(() => currentText = value.trim());
+                },
+                onSubmitted: (_) {
+                  final trimmedSubmit = controller.text.trim();
+                  if (trimmedSubmit.isEmpty) {
+                    return;
+                  }
+                  Navigator.of(context).pop(trimmedSubmit);
+                },
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text('Cancel'),
+                ),
+                FilledButton(
+                  onPressed: currentText.isEmpty
+                      ? null
+                      : () => Navigator.of(context).pop(currentText),
+                  child: const Text('Save'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+    controller.dispose();
+
+    final trimmed = result?.trim() ?? '';
+    if (trimmed.isEmpty || trimmed == conversation.title) {
+      return;
+    }
+
+    await widget.store.renameConversation(
+      id: conversation.id,
+      newTitle: trimmed,
+    );
+
+    if (!mounted) {
+      return;
+    }
+
+    if (widget.selectedConversationId == conversation.id) {
+      final updated = widget.store.current
+          .where((item) => item.id == conversation.id)
+          .toList();
+      Navigator.of(context).pop(updated.isNotEmpty ? updated.first : null);
+    }
+  }
+
+  Future<void> _confirmDeleteConversation(Conversation conversation) async {
+    final shouldDelete =
+        await showDialog<bool>(
+          context: context,
+          builder: (context) {
+            return AlertDialog(
+              title: const Text('Delete chat?'),
+              content: Text(
+                'This will remove "${conversation.title}" and its messages from this device. This action cannot be undone.',
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(false),
+                  child: const Text('Cancel'),
+                ),
+                FilledButton(
+                  onPressed: () => Navigator.of(context).pop(true),
+                  child: const Text('Delete'),
+                ),
+              ],
+            );
+          },
+        ) ??
+        false;
+
+    if (!shouldDelete) {
+      return;
+    }
+
+    await widget.store.deleteConversation(conversation.id);
+
+    if (!mounted) {
+      return;
+    }
+
+    if (widget.selectedConversationId == conversation.id) {
+      Navigator.of(context).pop(null);
+    }
+  }
+}
+
+enum _ConversationAction { rename, delete }
+
+class _HostModeSection extends StatelessWidget {
+  const _HostModeSection({required this.controller});
+
+  final P2pSessionController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    final hostState = controller.hostState;
+    final isActive = controller.isHostingActive;
+    final theme = Theme.of(context);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          isActive
+              ? 'Your hotspot is live. Share the details below so peers can join.'
+              : 'Create a hotspot so nearby peers can discover and join you.',
+          style: theme.textTheme.bodyLarge,
+        ),
+        const SizedBox(height: 16),
+        ElevatedButton.icon(
+          icon: const Icon(Icons.wifi_tethering),
+          label: Text(
+            isActive ? 'Refresh hotspot' : 'Create group & advertise',
+          ),
+          onPressed: controller.isBusy
+              ? null
+              : () => controller.createGroupAndAdvertise(),
+        ),
+        const SizedBox(height: 16),
+        if (isActive && hostState != null) ...[
+          _HostDetails(state: hostState),
+          const SizedBox(height: 12),
+          OutlinedButton.icon(
+            icon: const Icon(Icons.stop_circle_outlined),
+            label: const Text('Stop hosting'),
+            onPressed: controller.isBusy
+                ? null
+                : () => controller.removeGroup(),
+          ),
+        ] else ...[
+          Text(
+            'We will check your permissions and enable Wi‑Fi, location, and Bluetooth as needed.',
+            style: theme.textTheme.bodyMedium,
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _ClientModeSection extends StatelessWidget {
+  const _ClientModeSection({required this.controller});
+
+  final P2pSessionController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    final devices = controller.discoveredDevices;
+    final clientState = controller.clientState;
+    final isConnected = controller.isClientConnected;
+    final isScanning = controller.isScanning;
+    final theme = Theme.of(context);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          isConnected
+              ? 'Connected to ${clientState?.hostSsid ?? 'host'}. You are ready to chat.'
+              : 'Scan for nearby hosts to join their conversation.',
+          style: theme.textTheme.bodyLarge,
+        ),
+        const SizedBox(height: 16),
+        ElevatedButton.icon(
+          icon: Icon(isScanning ? Icons.pause : Icons.search),
+          label: Text(isScanning ? 'Stop discovery' : 'Discover nearby hosts'),
+          onPressed: controller.isBusy
+              ? null
+              : () {
+                  if (isScanning) {
+                    controller.stopDiscovery();
+                  } else {
+                    controller.startDiscovery();
+                  }
+                },
+        ),
+        const SizedBox(height: 16),
+        if (devices.isEmpty && !isScanning && !isConnected)
+          Text(
+            'No advertised host found yet. Start discovery to look for peers.',
+            style: theme.textTheme.bodyMedium,
+          )
+        else
+          Expanded(
+            child: _DiscoveredDevicesList(
+              devices: devices,
+              onConnect: controller.isBusy
+                  ? null
+                  : (device) {
+                      controller.connectToDiscoveredHost(device);
+                    },
+            ),
+          ),
+        if (isConnected && clientState != null) ...[
+          const SizedBox(height: 12),
+          _ClientDetails(state: clientState),
+          const SizedBox(height: 12),
+          OutlinedButton.icon(
+            icon: const Icon(Icons.link_off),
+            label: const Text('Disconnect'),
+            onPressed: controller.isBusy
+                ? null
+                : () => controller.disconnectFromHost(),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _DiscoveredDevicesList extends StatelessWidget {
+  const _DiscoveredDevicesList({
+    required this.devices,
+    required this.onConnect,
+  });
+
+  final List<BleDiscoveredDevice> devices;
+  final ValueChanged<BleDiscoveredDevice>? onConnect;
+
+  @override
+  Widget build(BuildContext context) {
+    if (devices.isEmpty) {
+      return Center(
+        child: Text(
+          'Looking for hosts…',
+          style: Theme.of(context).textTheme.bodyMedium,
+        ),
+      );
+    }
+
+    return ListView.separated(
+      itemCount: devices.length,
+      separatorBuilder: (_, __) => const Divider(height: 1),
+      itemBuilder: (context, index) {
+        final device = devices[index];
+        return ListTile(
+          title: Text(device.deviceName),
+          subtitle: Text(device.deviceAddress),
+          trailing: IconButton(
+            icon: const Icon(Icons.link),
+            tooltip: 'Connect',
+            onPressed: onConnect == null ? null : () => onConnect!(device),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _HostDetails extends StatelessWidget {
+  const _HostDetails({required this.state});
+
+  final HotspotHostState state;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SelectableText(
+          'SSID: ${state.ssid ?? 'Unavailable'}',
+          style: theme.textTheme.bodySmall,
+        ),
+        SelectableText(
+          'Password: ${state.preSharedKey ?? 'Unavailable'}',
+          style: theme.textTheme.bodySmall,
+        ),
+        SelectableText(
+          'Host IP: ${state.hostIpAddress ?? 'Pending'}',
+          style: theme.textTheme.bodySmall,
+        ),
+      ],
+    );
+  }
+}
+
+class _ClientDetails extends StatelessWidget {
+  const _ClientDetails({required this.state});
+
+  final HotspotClientState state;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SelectableText(
+          'Host SSID: ${state.hostSsid ?? 'Unknown'}',
+          style: theme.textTheme.bodySmall,
+        ),
+        SelectableText(
+          'Gateway IP: ${state.hostGatewayIpAddress ?? 'Unknown'}',
+          style: theme.textTheme.bodySmall,
+        ),
+        SelectableText(
+          'Device IP: ${state.hostIpAddress ?? 'Unknown'}',
+          style: theme.textTheme.bodySmall,
+        ),
+      ],
+    );
+  }
+}
