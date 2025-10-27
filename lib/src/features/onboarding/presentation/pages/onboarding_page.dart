@@ -162,7 +162,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
           ),
           const SizedBox(height: 32),
           Text(
-            'Welcome to OffChat',
+            'Welcome to UsaApp',
             style: Theme.of(
               context,
             ).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold),
@@ -215,7 +215,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
           ),
           const SizedBox(height: 16),
           Text(
-            'OffChat needs these permissions to work:',
+            'UsaApp needs these permissions to work:',
             style: Theme.of(context).textTheme.bodyLarge,
             textAlign: TextAlign.center,
           ),
@@ -284,7 +284,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
           const SizedBox(height: 16),
           Text(
             _setupStatus.isEmpty
-                ? 'Tap the button below to configure permissions and services. This will allow OffChat to discover and connect to nearby devices.'
+                ? 'Tap the button below to configure permissions and services. This will allow UsaApp to discover and connect to nearby devices.'
                 : _setupStatus,
             style: Theme.of(context).textTheme.bodyLarge,
             textAlign: TextAlign.center,

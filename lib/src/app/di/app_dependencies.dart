@@ -11,6 +11,7 @@ import '../../features/chat/domain/repositories/chat_repository.dart';
 import '../../features/chat/domain/usecases/send_message.dart';
 import '../../features/chat/domain/usecases/watch_messages.dart';
 import '../../features/chat/presentation/controllers/chat_controller.dart';
+import '../../features/p2p/data/services/latency_probe_service.dart';
 import '../../features/p2p/data/services/p2p_service.dart';
 import '../../features/p2p/presentation/controllers/p2p_session_controller.dart';
 
@@ -29,6 +30,7 @@ class AppDependencies {
   late final PeerIdentityService _peerIdentityService;
   late PeerIdentity _peerIdentity;
   late final ConversationStore _conversationStore;
+  late final LatencyProbeService _latencyProbeService;
   Map<String, String> _knownPeers = <String, String>{};
 
   Future<void> init() async {
@@ -54,6 +56,8 @@ class AppDependencies {
       sharedPreferences: sharedPreferences,
     );
     await _conversationStore.init();
+
+    _latencyProbeService = LatencyProbeService(identity: _peerIdentity);
   }
 
   ChatController createChatController({required Conversation conversation}) {
@@ -72,6 +76,7 @@ class AppDependencies {
   }
 
   P2pService get p2pService => _p2pService;
+  LatencyProbeService get latencyProbeService => _latencyProbeService;
 
   PeerIdentity get peerIdentity => _peerIdentity;
   Map<String, String> get knownPeers =>
@@ -83,6 +88,7 @@ class AppDependencies {
     return P2pSessionController(
       p2pService: _p2pService,
       conversationStore: _conversationStore,
+      latencyProbeService: _latencyProbeService,
     );
   }
 
@@ -94,6 +100,7 @@ class AppDependencies {
     await _peerIdentityService.setDisplayName(effectiveName);
     _peerIdentity = _peerIdentity.copyWith(displayName: effectiveName);
     _knownPeers[_peerIdentity.id] = effectiveName;
+    _latencyProbeService.updateIdentity(_peerIdentity);
   }
 
   Future<void> rememberPeerName({

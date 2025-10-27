@@ -6,7 +6,7 @@
     "configurations": [
 
         {
-            "name": "offchat",
+            "name": "UsaApp",
             "request": "launch",
             "type": "dart",
             "toolArgs": [
@@ -15,7 +15,7 @@
             ]
         },
         {
-            "name": "offchat (profile mode)",
+            "name": "UsaApp (profile mode)",
             "request": "launch",
             "type": "dart",
             "flutterMode": "profile",
@@ -25,7 +25,7 @@
             ]
         },
         {
-            "name": "offchat (release mode)",
+            "name": "UsaApp (release mode)",
             "request": "launch",
             "type": "dart",
             "flutterMode": "release",

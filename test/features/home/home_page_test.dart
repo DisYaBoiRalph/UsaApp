@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:offchat/src/app/di/app_dependencies.dart';
-import 'package:offchat/src/features/home/presentation/pages/home_page.dart';
+import 'package:usaapp/src/app/di/app_dependencies.dart';
+import 'package:usaapp/src/features/home/presentation/pages/home_page.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
@@ -15,15 +15,15 @@ void main() {
     await tester.pumpWidget(const MaterialApp(home: HomePage()));
     await tester.pumpAndSettle();
 
-  expect(find.text('View Chats'), findsOneWidget);
-  expect(find.text('Conversations'), findsOneWidget);
-  expect(find.text('Settings'), findsOneWidget);
+    expect(find.text('View Chats'), findsOneWidget);
+    expect(find.text('Conversations'), findsOneWidget);
+    expect(find.text('Settings'), findsOneWidget);
   });
 
   testWidgets('shows welcome message', (WidgetTester tester) async {
     await tester.pumpWidget(const MaterialApp(home: HomePage()));
     await tester.pumpAndSettle();
 
-    expect(find.text('Welcome to OffChat'), findsOneWidget);
+    expect(find.text('Welcome to UsaApp'), findsOneWidget);
   });
 }

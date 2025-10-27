@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../../../../app/di/app_dependencies.dart';
 import '../../../p2p/data/services/p2p_service.dart';
 import '../../../p2p/presentation/controllers/p2p_session_controller.dart';
+import '../../../p2p/presentation/widgets/latency_diagnostics_sheet.dart';
 import '../../domain/entities/chat_message_payload.dart';
 import '../../domain/entities/conversation.dart';
 import '../controllers/chat_controller.dart';
@@ -51,7 +52,12 @@ class _ChatPageState extends State<ChatPage> {
         AppDependencies.instance.createP2pSessionController();
     _ownsP2pController = widget.p2pController == null;
 
-    _p2pController.setActiveConversation(widget.conversation);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      _p2pController.setActiveConversation(widget.conversation);
+    });
     unawaited(_controller.start());
     _lastMessageCount = _controller.messages.length;
     _controller.addListener(_handleMessagesChanged);
@@ -71,14 +77,15 @@ class _ChatPageState extends State<ChatPage> {
   void dispose() {
     _incomingSubscription?.cancel();
     _controller.removeListener(_handleMessagesChanged);
+    _composerFocusNode.removeListener(_handleComposerFocusChange);
+    _composerFocusNode.unfocus();
+    _composerFocusNode.dispose();
     if (_ownsController) {
       _controller.dispose();
     }
     if (_ownsP2pController) {
       _p2pController.dispose();
     }
-    _composerFocusNode.removeListener(_handleComposerFocusChange);
-    _composerFocusNode.dispose();
     _messageScrollController.dispose();
     super.dispose();
   }
@@ -91,6 +98,13 @@ class _ChatPageState extends State<ChatPage> {
           animation: _controller,
           builder: (context, _) => Text(_controller.conversation.title),
         ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.speed_outlined),
+            tooltip: 'Latency diagnostics',
+            onPressed: _showLatencyDiagnostics,
+          ),
+        ],
       ),
       body: Column(
         children: <Widget>[
@@ -299,5 +313,13 @@ class _ChatPageState extends State<ChatPage> {
   Color _scaledAlpha(Color color, double factor) {
     final scaled = (color.a * factor).clamp(0.0, 1.0);
     return color.withAlpha((scaled * 255).round());
+  }
+
+  Future<void> _showLatencyDiagnostics() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) => LatencyDiagnosticsSheet(controller: _p2pController),
+    );
   }
 }

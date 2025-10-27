@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:offchat/src/app/di/app_dependencies.dart';
-import 'package:offchat/src/features/chat/domain/entities/conversation.dart';
-import 'package:offchat/src/features/chat/presentation/pages/chat_page.dart';
+import 'package:usaapp/src/app/di/app_dependencies.dart';
+import 'package:usaapp/src/features/chat/domain/entities/conversation.dart';
+import 'package:usaapp/src/features/chat/presentation/pages/chat_page.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {

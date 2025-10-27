@@ -296,91 +296,106 @@ class _ConversationPickerSheetState extends State<_ConversationPickerSheet> {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: EdgeInsets.only(
-        left: 24,
-        right: 24,
-        top: 24,
-        bottom: MediaQuery.of(context).viewInsets.bottom + 24,
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          FilledButton.icon(
-            icon: _isCreating
-                ? const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Icon(Icons.add_comment_outlined),
-            label: Text(_isCreating ? 'Creating…' : 'Create new chat'),
-            onPressed: _isCreating ? null : _handleCreatePressed,
-          ),
-          const SizedBox(height: 24),
-          Text(
-            'Choose an existing conversation',
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
-          const SizedBox(height: 12),
-          SizedBox(
-            height: 300,
-            child: StreamBuilder<List<Conversation>>(
-              stream: _conversationsStream,
-              builder: (context, snapshot) {
-                final conversations = snapshot.data ?? widget.store.current;
-                if (conversations.isEmpty) {
-                  return const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 24),
-                    child: Center(
-                      child: Text('No conversations yet. Create a new one!'),
-                    ),
-                  );
-                }
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final media = MediaQuery.of(context);
+        final bottomPadding = media.viewInsets.bottom + 24;
 
-                return ListView.separated(
-                  shrinkWrap: true,
-                  itemCount: conversations.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 8),
-                  itemBuilder: (context, index) {
-                    final conversation = conversations[index];
-                    final isSelected =
-                        widget.selectedConversationId == conversation.id;
-                    return ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      leading: Icon(
-                        isSelected
-                            ? Icons.radio_button_checked
-                            : Icons.radio_button_off,
-                      ),
-                      title: Text(conversation.title),
-                      subtitle: Text(
-                        'Updated ${_relativeTime(conversation.updatedAt)}',
-                      ),
-                      onTap: () => Navigator.of(context).pop(conversation),
-                      trailing: PopupMenuButton<_ConversationAction>(
-                        onSelected: (action) =>
-                            _onConversationAction(action, conversation),
-                        itemBuilder: (context) => const [
-                          PopupMenuItem<_ConversationAction>(
-                            value: _ConversationAction.rename,
-                            child: Text('Rename'),
+        return AnimatedPadding(
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeOut,
+          padding: EdgeInsets.only(
+            left: 24,
+            right: 24,
+            top: 24,
+            bottom: bottomPadding,
+          ),
+          child: SizedBox(
+            height: constraints.maxHeight,
+            child: Column(
+              mainAxisSize: MainAxisSize.max,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                FilledButton.icon(
+                  icon: _isCreating
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.add_comment_outlined),
+                  label: Text(_isCreating ? 'Creating…' : 'Create new chat'),
+                  onPressed: _isCreating ? null : _handleCreatePressed,
+                ),
+                const SizedBox(height: 24),
+                Text(
+                  'Choose an existing conversation',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                const SizedBox(height: 12),
+                Expanded(
+                  child: StreamBuilder<List<Conversation>>(
+                    stream: _conversationsStream,
+                    builder: (context, snapshot) {
+                      final conversations =
+                          snapshot.data ?? widget.store.current;
+                      if (conversations.isEmpty) {
+                        return const Center(
+                          child: Padding(
+                            padding: EdgeInsets.symmetric(vertical: 24),
+                            child: Text(
+                              'No conversations yet. Create a new one!',
+                            ),
                           ),
-                          PopupMenuItem<_ConversationAction>(
-                            value: _ConversationAction.delete,
-                            child: Text('Delete'),
-                          ),
-                        ],
-                      ),
-                    );
-                  },
-                );
-              },
+                        );
+                      }
+
+                      return ListView.separated(
+                        padding: EdgeInsets.zero,
+                        itemCount: conversations.length,
+                        separatorBuilder: (_, __) => const SizedBox(height: 8),
+                        itemBuilder: (context, index) {
+                          final conversation = conversations[index];
+                          final isSelected =
+                              widget.selectedConversationId == conversation.id;
+                          return ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            leading: Icon(
+                              isSelected
+                                  ? Icons.radio_button_checked
+                                  : Icons.radio_button_off,
+                            ),
+                            title: Text(conversation.title),
+                            subtitle: Text(
+                              'Updated ${_relativeTime(conversation.updatedAt)}',
+                            ),
+                            onTap: () =>
+                                Navigator.of(context).pop(conversation),
+                            trailing: PopupMenuButton<_ConversationAction>(
+                              onSelected: (action) =>
+                                  _onConversationAction(action, conversation),
+                              itemBuilder: (context) => const [
+                                PopupMenuItem<_ConversationAction>(
+                                  value: _ConversationAction.rename,
+                                  child: Text('Rename'),
+                                ),
+                                PopupMenuItem<_ConversationAction>(
+                                  value: _ConversationAction.delete,
+                                  child: Text('Delete'),
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                      );
+                    },
+                  ),
+                ),
+              ],
             ),
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -406,52 +421,13 @@ class _ConversationPickerSheetState extends State<_ConversationPickerSheet> {
   }
 
   Future<String?> _promptForName() async {
-    final controller = TextEditingController();
-    String currentText = '';
-    final result = await showDialog<String>(
+    return showDialog<String>(
       context: context,
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, dialogSetState) {
-            return AlertDialog(
-              title: const Text('Create new chat'),
-              content: TextField(
-                controller: controller,
-                autofocus: true,
-                textInputAction: TextInputAction.done,
-                decoration: const InputDecoration(
-                  labelText: 'Conversation name',
-                ),
-                onChanged: (value) {
-                  dialogSetState(() => currentText = value.trim());
-                },
-                onSubmitted: (_) {
-                  final trimmedSubmit = controller.text.trim();
-                  if (trimmedSubmit.isEmpty) {
-                    return;
-                  }
-                  Navigator.of(context).pop(trimmedSubmit);
-                },
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  child: const Text('Cancel'),
-                ),
-                FilledButton(
-                  onPressed: currentText.isEmpty
-                      ? null
-                      : () => Navigator.of(context).pop(currentText),
-                  child: const Text('Create'),
-                ),
-              ],
-            );
-          },
-        );
-      },
+      builder: (context) => const _ConversationNameDialog(
+        title: 'Create new chat',
+        confirmLabel: 'Create',
+      ),
     );
-    controller.dispose();
-    return result;
   }
 
   String _relativeTime(DateTime timestamp) {
@@ -483,51 +459,14 @@ class _ConversationPickerSheetState extends State<_ConversationPickerSheet> {
   }
 
   Future<void> _renameConversation(Conversation conversation) async {
-    final controller = TextEditingController(text: conversation.title);
-    String currentText = conversation.title.trim();
     final result = await showDialog<String>(
       context: context,
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, dialogSetState) {
-            return AlertDialog(
-              title: const Text('Rename chat'),
-              content: TextField(
-                controller: controller,
-                autofocus: true,
-                textInputAction: TextInputAction.done,
-                decoration: const InputDecoration(
-                  labelText: 'Conversation name',
-                ),
-                onChanged: (value) {
-                  dialogSetState(() => currentText = value.trim());
-                },
-                onSubmitted: (_) {
-                  final trimmedSubmit = controller.text.trim();
-                  if (trimmedSubmit.isEmpty) {
-                    return;
-                  }
-                  Navigator.of(context).pop(trimmedSubmit);
-                },
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  child: const Text('Cancel'),
-                ),
-                FilledButton(
-                  onPressed: currentText.isEmpty
-                      ? null
-                      : () => Navigator.of(context).pop(currentText),
-                  child: const Text('Save'),
-                ),
-              ],
-            );
-          },
-        );
-      },
+      builder: (context) => _ConversationNameDialog(
+        title: 'Rename chat',
+        confirmLabel: 'Save',
+        initialValue: conversation.title,
+      ),
     );
-    controller.dispose();
 
     final trimmed = result?.trim() ?? '';
     if (trimmed.isEmpty || trimmed == conversation.title) {
@@ -592,6 +531,75 @@ class _ConversationPickerSheetState extends State<_ConversationPickerSheet> {
   }
 }
 
+class _ConversationNameDialog extends StatefulWidget {
+  const _ConversationNameDialog({
+    required this.title,
+    required this.confirmLabel,
+    this.initialValue = '',
+  });
+
+  final String title;
+  final String confirmLabel;
+  final String initialValue;
+
+  @override
+  State<_ConversationNameDialog> createState() =>
+      _ConversationNameDialogState();
+}
+
+class _ConversationNameDialogState extends State<_ConversationNameDialog> {
+  late final TextEditingController _controller;
+  late String _currentText;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: widget.initialValue);
+    _currentText = widget.initialValue.trim();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    final trimmed = _controller.text.trim();
+    if (trimmed.isEmpty) {
+      return;
+    }
+    Navigator.of(context).pop(trimmed);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text(widget.title),
+      content: TextField(
+        controller: _controller,
+        autofocus: true,
+        textInputAction: TextInputAction.done,
+        decoration: const InputDecoration(labelText: 'Conversation name'),
+        onChanged: (value) {
+          setState(() => _currentText = value.trim());
+        },
+        onSubmitted: (_) => _submit(),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: _currentText.isEmpty ? null : _submit,
+          child: Text(widget.confirmLabel),
+        ),
+      ],
+    );
+  }
+}
+
 enum _ConversationAction { rename, delete }
 
 class _HostModeSection extends StatelessWidget {
@@ -605,43 +613,53 @@ class _HostModeSection extends StatelessWidget {
     final isActive = controller.isHostingActive;
     final theme = Theme.of(context);
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          isActive
-              ? 'Your hotspot is live. Share the details below so peers can join.'
-              : 'Create a hotspot so nearby peers can discover and join you.',
-          style: theme.textTheme.bodyLarge,
-        ),
-        const SizedBox(height: 16),
-        ElevatedButton.icon(
-          icon: const Icon(Icons.wifi_tethering),
-          label: Text(
-            isActive ? 'Refresh hotspot' : 'Create group & advertise',
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return SingleChildScrollView(
+          padding: EdgeInsets.zero,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minHeight: constraints.maxHeight),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  isActive
+                      ? 'Your hotspot is live. Share the details below so peers can join.'
+                      : 'Create a hotspot so nearby peers can discover and join you.',
+                  style: theme.textTheme.bodyLarge,
+                ),
+                const SizedBox(height: 16),
+                ElevatedButton.icon(
+                  icon: const Icon(Icons.wifi_tethering),
+                  label: Text(
+                    isActive ? 'Refresh hotspot' : 'Create group & advertise',
+                  ),
+                  onPressed: controller.isBusy
+                      ? null
+                      : () => controller.createGroupAndAdvertise(),
+                ),
+                const SizedBox(height: 16),
+                if (isActive && hostState != null) ...[
+                  _HostDetails(state: hostState),
+                  const SizedBox(height: 12),
+                  OutlinedButton.icon(
+                    icon: const Icon(Icons.stop_circle_outlined),
+                    label: const Text('Stop hosting'),
+                    onPressed: controller.isBusy
+                        ? null
+                        : () => controller.removeGroup(),
+                  ),
+                ] else ...[
+                  Text(
+                    'We will check your permissions and enable Wi‑Fi, location, and Bluetooth as needed.',
+                    style: theme.textTheme.bodyMedium,
+                  ),
+                ],
+              ],
+            ),
           ),
-          onPressed: controller.isBusy
-              ? null
-              : () => controller.createGroupAndAdvertise(),
-        ),
-        const SizedBox(height: 16),
-        if (isActive && hostState != null) ...[
-          _HostDetails(state: hostState),
-          const SizedBox(height: 12),
-          OutlinedButton.icon(
-            icon: const Icon(Icons.stop_circle_outlined),
-            label: const Text('Stop hosting'),
-            onPressed: controller.isBusy
-                ? null
-                : () => controller.removeGroup(),
-          ),
-        ] else ...[
-          Text(
-            'We will check your permissions and enable Wi‑Fi, location, and Bluetooth as needed.',
-            style: theme.textTheme.bodyMedium,
-          ),
-        ],
-      ],
+        );
+      },
     );
   }
 }

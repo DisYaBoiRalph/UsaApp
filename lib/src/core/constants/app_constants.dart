@@ -1,5 +1,5 @@
 class AppConstants {
   const AppConstants._();
 
-  static const appName = 'OffChat';
+  static const appName = 'UsaApp';
 }

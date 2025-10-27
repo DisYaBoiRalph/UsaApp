@@ -1,6 +1,6 @@
-# OffChat
+# UsaApp
 
-Peer-to-peer messaging for nearby devices, built with Flutter. OffChat lets you spin up an ad-hoc chat without relying on the internet or a backend service.
+Peer-to-peer messaging for nearby devices, built with Flutter. UsaApp lets you spin up an ad-hoc chat without relying on the internet or a backend service.
 
 ## Features
 

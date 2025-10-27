@@ -184,49 +184,14 @@ class _ChatsLibraryPageState extends State<ChatsLibraryPage> {
     required String title,
     String? initialValue,
   }) async {
-    final controller = TextEditingController(text: initialValue ?? '');
-    String currentText = controller.text.trim();
-    final result = await showDialog<String>(
+    return showDialog<String>(
       context: context,
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setState) {
-            return AlertDialog(
-              title: Text(title),
-              content: TextField(
-                controller: controller,
-                autofocus: true,
-                textInputAction: TextInputAction.done,
-                onChanged: (value) {
-                  setState(() => currentText = value.trim());
-                },
-                onSubmitted: (_) {
-                  final trimmed = controller.text.trim();
-                  if (trimmed.isEmpty) {
-                    return;
-                  }
-                  Navigator.of(context).pop(trimmed);
-                },
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  child: const Text('Cancel'),
-                ),
-                FilledButton(
-                  onPressed: currentText.isEmpty
-                      ? null
-                      : () => Navigator.of(context).pop(currentText),
-                  child: const Text('Save'),
-                ),
-              ],
-            );
-          },
-        );
-      },
+      builder: (context) => _ConversationNameDialog(
+        title: title,
+        confirmLabel: 'Save',
+        initialValue: initialValue ?? '',
+      ),
     );
-    controller.dispose();
-    return result;
   }
 
   void _openConversation(Conversation conversation) {
@@ -249,6 +214,74 @@ class _ChatsLibraryPageState extends State<ChatsLibraryPage> {
       return 'Updated ${difference.inHours} h ago';
     }
     return 'Updated ${difference.inDays} day${difference.inDays > 1 ? 's' : ''} ago';
+  }
+}
+
+class _ConversationNameDialog extends StatefulWidget {
+  const _ConversationNameDialog({
+    required this.title,
+    required this.confirmLabel,
+    this.initialValue = '',
+  });
+
+  final String title;
+  final String confirmLabel;
+  final String initialValue;
+
+  @override
+  State<_ConversationNameDialog> createState() =>
+      _ConversationNameDialogState();
+}
+
+class _ConversationNameDialogState extends State<_ConversationNameDialog> {
+  late final TextEditingController _controller;
+  late String _currentText;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: widget.initialValue);
+    _currentText = widget.initialValue.trim();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    final trimmed = _controller.text.trim();
+    if (trimmed.isEmpty) {
+      return;
+    }
+    Navigator.of(context).pop(trimmed);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text(widget.title),
+      content: TextField(
+        controller: _controller,
+        autofocus: true,
+        textInputAction: TextInputAction.done,
+        onChanged: (value) {
+          setState(() => _currentText = value.trim());
+        },
+        onSubmitted: (_) => _submit(),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: _currentText.isEmpty ? null : _submit,
+          child: Text(widget.confirmLabel),
+        ),
+      ],
+    );
   }
 }
 

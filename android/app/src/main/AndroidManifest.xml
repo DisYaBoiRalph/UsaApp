@@ -1,6 +1,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools"
-    package="com.trismegistus.offchat">
+    package="com.trismegistus.usaapp">
     <!-- Internet for WebSocket communication -->
     <uses-permission android:name="android.permission.INTERNET" />
 
@@ -66,7 +66,7 @@
     <uses-feature android:name="android.hardware.bluetooth" android:required="true" />
     <uses-feature android:name="android.hardware.bluetooth_le" android:required="true" />
     <application
-        android:label="OffChat"
+    android:label="UsaApp"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

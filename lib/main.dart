@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'src/app/di/app_dependencies.dart';
-import 'src/app/offchat_app.dart';
+import 'src/app/usa_app.dart';
 import 'src/core/services/onboarding_service.dart';
 
 Future<void> main() async {
@@ -9,5 +9,5 @@ Future<void> main() async {
   await AppDependencies.instance.init();
   final initialRoute = await OnboardingService().getInitialRoute();
 
-  runApp(OffChatApp(initialRoute: initialRoute));
+  runApp(UsaApp(initialRoute: initialRoute));
 }

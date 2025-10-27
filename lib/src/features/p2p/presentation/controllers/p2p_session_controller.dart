@@ -8,19 +8,23 @@ import '../../../chat/domain/entities/chat_message_payload.dart';
 import '../../../chat/domain/entities/conversation.dart';
 import '../../../chat/data/datasources/conversation_store.dart';
 import '../../data/services/p2p_service.dart';
+import '../../data/services/latency_probe_service.dart';
 
-const String _conversationAnnouncementPrefix = '__offchat_conversation__:';
-const String _conversationRequestMessage = '__offchat_request_conversation__';
+const String _conversationAnnouncementPrefix = '__usaapp_conversation__:';
+const String _conversationRequestMessage = '__usaapp_request_conversation__';
 
 class P2pSessionController extends ChangeNotifier {
   P2pSessionController({
     required P2pService p2pService,
     ConversationStore? conversationStore,
+    LatencyProbeService? latencyProbeService,
   }) : _p2pService = p2pService,
-       _conversationStore = conversationStore;
+       _conversationStore = conversationStore,
+       _latencyProbeService = latencyProbeService;
 
   final P2pService _p2pService;
   final ConversationStore? _conversationStore;
+  final LatencyProbeService? _latencyProbeService;
 
   P2pSessionRole? _role;
   bool _isBusy = false;
@@ -403,6 +407,22 @@ class P2pSessionController extends ChangeNotifier {
   void _handleIncomingText(String raw) {
     final trimmed = raw.trim();
     if (trimmed.isEmpty) {
+      return;
+    }
+
+    if (_latencyProbeService?.isLatencyPacket(trimmed) == true) {
+      final service = _latencyProbeService!;
+      unawaited(
+        service
+            .tryHandleIncomingPacket(
+              message: trimmed,
+              sendReply: (message) => sendGroupText(message),
+            )
+            .catchError((Object error, StackTrace stackTrace) {
+              debugPrint('Latency packet handling failed: $error');
+              return false;
+            }),
+      );
       return;
     }
 

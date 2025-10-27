@@ -14,11 +14,11 @@ class HomePage extends StatelessWidget {
     final theme = Theme.of(context);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('OffChat')),
+      appBar: AppBar(title: const Text('UsaApp')),
       body: ListView(
         padding: const EdgeInsets.all(24),
         children: <Widget>[
-          Text('Welcome to OffChat', style: theme.textTheme.headlineSmall),
+          Text('Welcome to UsaApp', style: theme.textTheme.headlineSmall),
           const SizedBox(height: 12),
           Text(
             'Choose where you would like to start. You can review saved chats, tweak your settings, or jump right into conversations.',

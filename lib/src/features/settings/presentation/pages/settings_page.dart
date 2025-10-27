@@ -15,6 +15,7 @@ class _SettingsPageState extends State<SettingsPage> {
   late final SettingsController _controller;
   late final TextEditingController _displayNameController;
   late final FocusNode _displayNameFocusNode;
+  bool _isIdentityReloading = false;
 
   @override
   void initState() {
@@ -144,11 +145,19 @@ class _SettingsPageState extends State<SettingsPage> {
           AnimatedBuilder(
             animation: _controller,
             builder: (context, _) {
-              final isSaving = _controller.isSavingDisplayName;
               final helperText = _controller.displayName.trim().isEmpty
                   ? 'Set a name so peers can recognize you.'
                   : 'This is how your name appears to peers. Leave blank to reset.';
-              return Card(
+              final isSaving =
+                  _controller.isSavingDisplayName || _isIdentityReloading;
+              final buttonLabel = _controller.isSavingDisplayName
+                  ? 'Saving…'
+                  : _isIdentityReloading
+                  ? 'Loading…'
+                  : 'Save name';
+
+              final identityCard = Card(
+                key: const ValueKey('identityCard'),
                 child: Padding(
                   padding: const EdgeInsets.all(16),
                   child: Column(
@@ -163,6 +172,7 @@ class _SettingsPageState extends State<SettingsPage> {
                         controller: _displayNameController,
                         focusNode: _displayNameFocusNode,
                         textCapitalization: TextCapitalization.words,
+                        enabled: !isSaving,
                         decoration: InputDecoration(
                           labelText: 'Display name',
                           helperText: helperText,
@@ -185,7 +195,7 @@ class _SettingsPageState extends State<SettingsPage> {
                                     ),
                                   )
                                 : const Icon(Icons.save_outlined),
-                            label: Text(isSaving ? 'Saving…' : 'Save name'),
+                            label: Text(buttonLabel),
                           ),
                           const SizedBox(width: 16),
                           Expanded(
@@ -200,14 +210,21 @@ class _SettingsPageState extends State<SettingsPage> {
                   ),
                 ),
               );
+
+              return AnimatedSwitcher(
+                duration: const Duration(milliseconds: 200),
+                child: _isIdentityReloading
+                    ? _buildIdentitySkeleton(context)
+                    : identityCard,
+              );
             },
           ),
           const SizedBox(height: 8),
-          const ListTile(
-            leading: Icon(Icons.security_outlined),
-            title: Text('Privacy'),
-            subtitle: Text('Configure how peers discover you.'),
-          ),
+          // const ListTile(
+          //   leading: Icon(Icons.security_outlined),
+          //   title: Text('Privacy'),
+          //   subtitle: Text('Configure how peers discover you.'),
+          // ),
           // const ListTile(
           //   leading: Icon(Icons.palette_outlined),
           //   title: Text('Appearance'),
@@ -219,29 +236,112 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   void _syncDisplayNameField() {
-    if (!mounted) {
+    if (!mounted || _controller.isSavingDisplayName || _isIdentityReloading) {
       return;
     }
     final value = _controller.displayName;
-    if (_displayNameFocusNode.hasFocus) {
+    if (_displayNameController.text == value) {
       return;
     }
-    if (_displayNameController.text != value) {
-      _displayNameController.text = value;
-    }
+    _displayNameController.value = TextEditingValue(
+      text: value,
+      selection: TextSelection.collapsed(offset: value.length),
+    );
   }
 
   Future<void> _handleSaveDisplayName() async {
+    if (_isIdentityReloading) {
+      return;
+    }
+    _displayNameFocusNode.unfocus();
     final trimmed = _displayNameController.text.trim();
-    await _controller.updateDisplayName(trimmed);
+    setState(() {
+      _isIdentityReloading = true;
+    });
+
+    try {
+      await _controller.updateDisplayName(trimmed);
+      await _controller.refreshStatus();
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isIdentityReloading = false;
+        });
+      }
+    }
+
     if (!mounted) {
       return;
     }
-    final message = trimmed.isEmpty
+
+    final effectiveName = _controller.displayName;
+    if (_displayNameController.text != effectiveName) {
+      _displayNameController.value = TextEditingValue(
+        text: effectiveName,
+        selection: TextSelection.collapsed(offset: effectiveName.length),
+      );
+    }
+
+    final message = effectiveName.trim().isEmpty
         ? 'Display name reset to default.'
         : 'Display name updated.';
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  Widget _buildIdentitySkeleton(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final baseColor = scheme.surfaceVariant;
+    return Card(
+      key: const ValueKey('identitySkeleton'),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              height: 20,
+              width: 140,
+              decoration: BoxDecoration(
+                color: baseColor,
+                borderRadius: BorderRadius.circular(6),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Container(
+              height: 56,
+              decoration: BoxDecoration(
+                color: baseColor,
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Container(
+                  height: 40,
+                  width: 120,
+                  decoration: BoxDecoration(
+                    color: baseColor,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Container(
+                    height: 24,
+                    decoration: BoxDecoration(
+                      color: baseColor,
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }

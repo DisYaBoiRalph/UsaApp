@@ -1,4 +1,4 @@
-package com.trismegistus.offchat
+package com.trismegistus.usaapp
 
 import io.flutter.embedding.android.FlutterActivity
 

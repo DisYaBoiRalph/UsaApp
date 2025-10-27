@@ -82,10 +82,10 @@ class SettingsController extends ChangeNotifier {
     }
   }
 
-  Future<void> updateDisplayName(String name) async {
+  Future<String> updateDisplayName(String name) async {
     final trimmed = name.trim();
     if (trimmed.isEmpty && _displayName.trim().isEmpty) {
-      return;
+      return _displayName;
     }
 
     _isSavingDisplayName = true;
@@ -102,5 +102,7 @@ class SettingsController extends ChangeNotifier {
       _isSavingDisplayName = false;
       notifyListeners();
     }
+
+    return _displayName;
   }
 }
