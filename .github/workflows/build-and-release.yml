@@ -39,12 +39,15 @@ jobs:
       - name: Build APK
         run: flutter build apk --release
 
-      - name: Get version from pubspec.yaml
-        id: version
+      - name: Get app info from pubspec.yaml
+        id: app_info
         run: |
           VERSION=$(grep '^version:' pubspec.yaml | sed 's/^version:[[:space:]]*//' | sed 's/[[:space:]]*$//')
+          APP_NAME=$(grep '^name:' pubspec.yaml | sed 's/^name:[[:space:]]*//' | sed 's/[[:space:]]*$//')
           echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "app_name=$APP_NAME" >> $GITHUB_OUTPUT
           echo "Version: $VERSION"
+          echo "App Name: $APP_NAME"
 
       - name: Get commit info
         id: commit
@@ -52,23 +55,28 @@ jobs:
           COMMIT_SHORT=$(git rev-parse --short HEAD)
           echo "short_sha=$COMMIT_SHORT" >> $GITHUB_OUTPUT
 
+      - name: Rename APK
+        run: |
+          mv build/app/outputs/flutter-apk/app-release.apk \
+             build/app/outputs/flutter-apk/${{ steps.app_info.outputs.app_name }}-${{ steps.app_info.outputs.version }}.apk
+
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: usaapp-release-${{ steps.version.outputs.version }}
-          path: build/app/outputs/flutter-apk/app-release.apk
+          name: ${{ steps.app_info.outputs.app_name }}-${{ steps.app_info.outputs.version }}
+          path: build/app/outputs/flutter-apk/${{ steps.app_info.outputs.app_name }}-${{ steps.app_info.outputs.version }}.apk
           retention-days: 90
 
       - name: Create Release
         if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || format('v{0}-build-{1}', steps.version.outputs.version, steps.commit.outputs.short_sha) }}
-          name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || format('Release v{0} (Build {1})', steps.version.outputs.version, steps.commit.outputs.short_sha) }}
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || format('v{0}-build-{1}', steps.app_info.outputs.version, steps.commit.outputs.short_sha) }}
+          name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || format('Release v{0} (Build {1})', steps.app_info.outputs.version, steps.commit.outputs.short_sha) }}
           body: |
             ## UsaApp Release
 
-            **Version:** ${{ steps.version.outputs.version }}
+            **Version:** ${{ steps.app_info.outputs.version }}
             **Build:** ${{ steps.commit.outputs.short_sha }}
             **Date:** ${{ github.event.head_commit.timestamp || github.event.repository.updated_at }}
 
@@ -85,7 +93,7 @@ jobs:
             - Wi-Fi Direct and Bluetooth support
             - Offline-first local storage
           files: |
-            build/app/outputs/flutter-apk/app-release.apk
+            build/app/outputs/flutter-apk/${{ steps.app_info.outputs.app_name }}-${{ steps.app_info.outputs.version }}.apk
           draft: false
           prerelease: ${{ !startsWith(github.ref, 'refs/tags/') }}
         env:
