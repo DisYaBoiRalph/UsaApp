@@ -39,7 +39,7 @@ jobs:
       - name: Get version from pubspec.yaml
         id: version
         run: |
-          VERSION=$(grep '^version:' pubspec.yaml | sed 's/version: //' | tr -d ' ')
+          VERSION=$(grep '^version:' pubspec.yaml | sed 's/^version:[[:space:]]*//' | sed 's/[[:space:]]*$//')
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "Version: $VERSION"
 
@@ -67,7 +67,7 @@ jobs:
 
             **Version:** ${{ steps.version.outputs.version }}
             **Build:** ${{ steps.commit.outputs.short_sha }}
-            **Date:** ${{ github.event.head_commit.timestamp }}
+            **Date:** ${{ github.event.head_commit.timestamp || github.event.repository.updated_at }}
 
             ### Changes
             ${{ github.event.head_commit.message }}
