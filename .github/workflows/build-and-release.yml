@@ -1,0 +1,89 @@
+name: Build and Release APK
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build Flutter APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.24.5'
+          channel: 'stable'
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Build APK
+        run: flutter build apk --release
+
+      - name: Get version from pubspec.yaml
+        id: version
+        run: |
+          VERSION=$(grep '^version:' pubspec.yaml | sed 's/version: //' | tr -d ' ')
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Version: $VERSION"
+
+      - name: Get commit info
+        id: commit
+        run: |
+          COMMIT_SHORT=$(git rev-parse --short HEAD)
+          echo "short_sha=$COMMIT_SHORT" >> $GITHUB_OUTPUT
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: usaapp-release-${{ steps.version.outputs.version }}
+          path: build/app/outputs/flutter-apk/app-release.apk
+          retention-days: 90
+
+      - name: Create Release
+        if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || format('v{0}-build-{1}', steps.version.outputs.version, steps.commit.outputs.short_sha) }}
+          name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || format('Release v{0} (Build {1})', steps.version.outputs.version, steps.commit.outputs.short_sha) }}
+          body: |
+            ## UsaApp Release
+
+            **Version:** ${{ steps.version.outputs.version }}
+            **Build:** ${{ steps.commit.outputs.short_sha }}
+            **Date:** ${{ github.event.head_commit.timestamp }}
+
+            ### Changes
+            ${{ github.event.head_commit.message }}
+
+            ### Installation
+            Download the APK file below and install it on your Android device
+            (minimum Android 9.0 Pie required).
+
+            ### Features
+            - Peer-to-peer messaging for nearby devices
+            - No internet or backend service required
+            - Wi-Fi Direct and Bluetooth support
+            - Offline-first local storage
+          files: |
+            build/app/outputs/flutter-apk/app-release.apk
+          draft: false
+          prerelease: ${{ !startsWith(github.ref, 'refs/tags/') }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
