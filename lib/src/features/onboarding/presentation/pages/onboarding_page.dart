@@ -3,8 +3,10 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../../../app/di/app_dependencies.dart';
+import '../../../../core/models/peer_identity.dart';
 import '../../../../core/services/onboarding_service.dart';
 import '../../../../core/utils/logger.dart';
+import '../../../../core/widgets/profile_avatar.dart';
 import '../../../home/presentation/pages/home_page.dart';
 
 /// Onboarding screen that explains permissions and sets up P2P on first launch.
@@ -20,14 +22,26 @@ class OnboardingPage extends StatefulWidget {
 class _OnboardingPageState extends State<OnboardingPage> {
   final PageController _pageController = PageController();
   final Logger _logger = const Logger('OnboardingPage');
+  final _formKey = GlobalKey<FormState>();
+
   int _currentPage = 0;
   bool _isSettingUp = false;
   bool _setupComplete = false;
   String _setupStatus = '';
 
+  // Profile setup state
+  bool _showProfileSetup = false;
+  final _displayNameController = TextEditingController();
+  final _fullNameController = TextEditingController();
+  final _groupNameController = TextEditingController();
+  UserRole _selectedRole = UserRole.student;
+
   @override
   void dispose() {
     _pageController.dispose();
+    _displayNameController.dispose();
+    _fullNameController.dispose();
+    _groupNameController.dispose();
     super.dispose();
   }
 
@@ -55,12 +69,12 @@ class _OnboardingPageState extends State<OnboardingPage> {
       } on TimeoutException {
         _logger.info('Permission request timed out, continuing setup');
       }
-      await Future.delayed(const Duration(milliseconds: 500));
+      await Future<void>.delayed(const Duration(milliseconds: 500));
 
       // Enable services
       setState(() => _setupStatus = 'Enabling services...');
       await p2pService.checkAndEnableServices();
-      await Future.delayed(const Duration(milliseconds: 500));
+      await Future<void>.delayed(const Duration(milliseconds: 500));
 
       // Check if everything is ready
       final permissionsGranted = await p2pService.areAllPermissionsGranted();
@@ -118,6 +132,44 @@ class _OnboardingPageState extends State<OnboardingPage> {
   Future<void> _completeOnboarding() async {
     await OnboardingService().completeOnboarding();
     if (mounted) {
+      // Show profile setup prompt
+      setState(() => _showProfileSetup = true);
+    }
+  }
+
+  Future<void> _skipProfileSetup() async {
+    if (mounted) {
+      Navigator.of(
+        context,
+      ).pushNamedAndRemoveUntil(HomePage.routeName, (route) => false);
+    }
+  }
+
+  Future<void> _saveProfile() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    final identityService = AppDependencies.instance.peerIdentityService;
+
+    // Set display name first
+    await identityService.setDisplayName(_displayNameController.text.trim());
+
+    // Then update other profile fields
+    await identityService.updateProfile(
+      name: _fullNameController.text.trim().isEmpty
+          ? null
+          : _fullNameController.text.trim(),
+      groupName: _groupNameController.text.trim().isEmpty
+          ? null
+          : _groupNameController.text.trim(),
+      role: _selectedRole,
+    );
+
+    // Update app dependencies with new identity
+    await AppDependencies.instance.updatePeerDisplayName(
+      _displayNameController.text.trim(),
+    );
+
+    if (mounted) {
       Navigator.of(
         context,
       ).pushNamedAndRemoveUntil(HomePage.routeName, (route) => false);
@@ -126,6 +178,10 @@ class _OnboardingPageState extends State<OnboardingPage> {
 
   @override
   Widget build(BuildContext context) {
+    if (_showProfileSetup) {
+      return _buildProfileSetupScreen();
+    }
+
     return Scaffold(
       body: SafeArea(
         child: Column(
@@ -143,6 +199,230 @@ class _OnboardingPageState extends State<OnboardingPage> {
             ),
             _buildPageIndicator(),
             _buildNavigationButtons(),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildProfileSetupScreen() {
+    return Scaffold(
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const SizedBox(height: 32),
+              Icon(
+                Icons.person_add,
+                size: 80,
+                color: Theme.of(context).colorScheme.primary,
+              ),
+              const SizedBox(height: 24),
+              Text(
+                'Set Up Your Profile?',
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'Create a profile so others can identify you in chats. You can always do this later.',
+                style: Theme.of(
+                  context,
+                ).textTheme.bodyLarge?.copyWith(color: Colors.grey[600]),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 32),
+              _buildProfileForm(),
+              const SizedBox(height: 24),
+              _buildProfilePreview(),
+              const SizedBox(height: 32),
+              FilledButton(
+                onPressed: _saveProfile,
+                child: const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 12),
+                  child: Text('Save Profile'),
+                ),
+              ),
+              const SizedBox(height: 12),
+              OutlinedButton(
+                onPressed: _skipProfileSetup,
+                child: const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 12),
+                  child: Text('Skip for Now'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildProfileForm() {
+    return Form(
+      key: _formKey,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          TextFormField(
+            controller: _displayNameController,
+            decoration: const InputDecoration(
+              labelText: 'Display Name',
+              hintText: 'How you want to appear in chats',
+              prefixIcon: Icon(Icons.badge_outlined),
+              border: OutlineInputBorder(),
+            ),
+            textCapitalization: TextCapitalization.words,
+            validator: (value) {
+              if (value == null || value.trim().isEmpty) {
+                return 'Display name is required';
+              }
+              return null;
+            },
+            onChanged: (_) => setState(() {}),
+          ),
+          const SizedBox(height: 16),
+          TextFormField(
+            controller: _fullNameController,
+            decoration: const InputDecoration(
+              labelText: 'Full Name (Optional)',
+              hintText: 'Your real name',
+              prefixIcon: Icon(Icons.person_outline),
+              border: OutlineInputBorder(),
+            ),
+            textCapitalization: TextCapitalization.words,
+            onChanged: (_) => setState(() {}),
+          ),
+          const SizedBox(height: 16),
+          TextFormField(
+            controller: _groupNameController,
+            decoration: const InputDecoration(
+              labelText: 'Group/Class Name (Optional)',
+              hintText: 'e.g., Class 10-A, Team Alpha',
+              prefixIcon: Icon(Icons.group_outlined),
+              border: OutlineInputBorder(),
+            ),
+            textCapitalization: TextCapitalization.words,
+            onChanged: (_) => setState(() {}),
+          ),
+          const SizedBox(height: 16),
+          DropdownButtonFormField<UserRole>(
+            initialValue: _selectedRole,
+            decoration: const InputDecoration(
+              labelText: 'Role',
+              prefixIcon: Icon(Icons.work_outline),
+              border: OutlineInputBorder(),
+            ),
+            items: UserRole.values.map((role) {
+              return DropdownMenuItem(
+                value: role,
+                child: Text(role.displayName),
+              );
+            }).toList(),
+            onChanged: (value) {
+              if (value != null) {
+                setState(() => _selectedRole = value);
+              }
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildProfilePreview() {
+    final displayName = _displayNameController.text.trim();
+    if (displayName.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Preview',
+              style: Theme.of(
+                context,
+              ).textTheme.titleSmall?.copyWith(color: Colors.grey[600]),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                ProfileAvatar(
+                  identity: PeerIdentity(
+                    id: 'preview',
+                    displayName: displayName,
+                    name: _fullNameController.text.trim().isEmpty
+                        ? null
+                        : _fullNameController.text.trim(),
+                    groupName: _groupNameController.text.trim().isEmpty
+                        ? null
+                        : _groupNameController.text.trim(),
+                    role: _selectedRole,
+                  ),
+                  size: 48,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        displayName,
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(fontWeight: FontWeight.bold),
+                      ),
+                      if (_fullNameController.text.trim().isNotEmpty)
+                        Text(
+                          _fullNameController.text.trim(),
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(color: Colors.grey[600]),
+                        ),
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.primaryContainer,
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Text(
+                              _selectedRole.displayName,
+                              style: Theme.of(context).textTheme.labelSmall
+                                  ?.copyWith(
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.onPrimaryContainer,
+                                  ),
+                            ),
+                          ),
+                          if (_groupNameController.text.trim().isNotEmpty) ...[
+                            const SizedBox(width: 8),
+                            Text(
+                              _groupNameController.text.trim(),
+                              style: Theme.of(context).textTheme.bodySmall
+                                  ?.copyWith(color: Colors.grey[600]),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ],
         ),
       ),
@@ -266,7 +546,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
           if (_isSettingUp)
             const CircularProgressIndicator()
           else if (_setupComplete)
-            Icon(Icons.check_circle, size: 80, color: Colors.green)
+            const Icon(Icons.check_circle, size: 80, color: Colors.green)
           else
             Icon(
               Icons.settings_outlined,

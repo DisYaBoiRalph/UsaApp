@@ -44,26 +44,19 @@ class P2pService {
       logLabel: 'nearby Wi-Fi devices',
     );
 
-    if (!await _storagePermissionGranted(
-      interface: interface,
-      requestIfMissing: requestIfMissing,
-    )) {
+    if (!await _checkStoragePermission(interface)) {
       _logger.info('Requesting storage permission through plugin fallback');
-      await interface.askStoragePermission();
-      await _storagePermissionGranted(
-        interface: interface,
-        requestIfMissing: requestIfMissing,
-      );
+      await _askStoragePermission(interface);
     }
 
-    if (!await interface.checkP2pPermissions()) {
+    if (!await _checkP2pPermissions(interface)) {
       _logger.info('Requesting P2P permissions');
-      await interface.askP2pPermissions();
+      await _askP2pPermissions(interface);
     }
 
-    if (!await interface.checkBluetoothPermissions()) {
+    if (!await _checkBluetoothPermissions(interface)) {
       _logger.info('Requesting Bluetooth permissions');
-      await interface.askBluetoothPermissions();
+      await _askBluetoothPermissions(interface);
     }
 
     _logger.info('Permission checks completed for $role');
@@ -77,19 +70,19 @@ class P2pService {
 
     final interface = await _interfaceForRole(role);
 
-    if (!await interface.checkWifiEnabled()) {
+    if (!await _checkWifiEnabled(interface)) {
       _logger.info('Enabling Wi-Fi services');
-      await interface.enableWifiServices();
+      await _enableWifiServices(interface);
     }
 
-    if (!await interface.checkLocationEnabled()) {
+    if (!await _checkLocationEnabled(interface)) {
       _logger.info('Enabling location services');
-      await interface.enableLocationServices();
+      await _enableLocationServices(interface);
     }
 
-    if (!await interface.checkBluetoothEnabled()) {
+    if (!await _checkBluetoothEnabled(interface)) {
       _logger.info('Enabling Bluetooth services');
-      await interface.enableBluetoothServices();
+      await _enableBluetoothServices(interface);
     }
 
     _logger.info('Service checks completed for $role');
@@ -106,8 +99,8 @@ class P2pService {
       interface: interface,
       requestIfMissing: requestIfMissing,
     );
-    final p2p = await interface.checkP2pPermissions();
-    final bluetooth = await interface.checkBluetoothPermissions();
+    final p2p = await _checkP2pPermissions(interface);
+    final bluetooth = await _checkBluetoothPermissions(interface);
 
     var locationGranted = true;
     try {
@@ -153,9 +146,9 @@ class P2pService {
   }) async {
     final interface = await _interfaceForRole(role);
 
-    final wifi = await interface.checkWifiEnabled();
-    final location = await interface.checkLocationEnabled();
-    final bluetooth = await interface.checkBluetoothEnabled();
+    final wifi = await _checkWifiEnabled(interface);
+    final location = await _checkLocationEnabled(interface);
+    final bluetooth = await _checkBluetoothEnabled(interface);
     return wifi && location && bluetooth;
   }
 
@@ -221,12 +214,115 @@ class P2pService {
     }
   }
 
-  Future<dynamic> _interfaceForRole(P2pSessionRole role) async {
+  Future<Object> _interfaceForRole(P2pSessionRole role) async {
     switch (role) {
       case P2pSessionRole.host:
         return ensureHostInitialized();
       case P2pSessionRole.client:
         return ensureClientInitialized();
+    }
+  }
+
+  // Helper methods to call interface methods with proper typing
+  Future<bool> _checkStoragePermission(Object interface) async {
+    if (interface is FlutterP2pHost) {
+      return interface.checkStoragePermission();
+    } else if (interface is FlutterP2pClient) {
+      return interface.checkStoragePermission();
+    }
+    return false;
+  }
+
+  Future<void> _askStoragePermission(Object interface) async {
+    if (interface is FlutterP2pHost) {
+      await interface.askStoragePermission();
+    } else if (interface is FlutterP2pClient) {
+      await interface.askStoragePermission();
+    }
+  }
+
+  Future<bool> _checkP2pPermissions(Object interface) async {
+    if (interface is FlutterP2pHost) {
+      return interface.checkP2pPermissions();
+    } else if (interface is FlutterP2pClient) {
+      return interface.checkP2pPermissions();
+    }
+    return false;
+  }
+
+  Future<void> _askP2pPermissions(Object interface) async {
+    if (interface is FlutterP2pHost) {
+      await interface.askP2pPermissions();
+    } else if (interface is FlutterP2pClient) {
+      await interface.askP2pPermissions();
+    }
+  }
+
+  Future<bool> _checkBluetoothPermissions(Object interface) async {
+    if (interface is FlutterP2pHost) {
+      return interface.checkBluetoothPermissions();
+    } else if (interface is FlutterP2pClient) {
+      return interface.checkBluetoothPermissions();
+    }
+    return false;
+  }
+
+  Future<void> _askBluetoothPermissions(Object interface) async {
+    if (interface is FlutterP2pHost) {
+      await interface.askBluetoothPermissions();
+    } else if (interface is FlutterP2pClient) {
+      await interface.askBluetoothPermissions();
+    }
+  }
+
+  Future<bool> _checkWifiEnabled(Object interface) async {
+    if (interface is FlutterP2pHost) {
+      return interface.checkWifiEnabled();
+    } else if (interface is FlutterP2pClient) {
+      return interface.checkWifiEnabled();
+    }
+    return false;
+  }
+
+  Future<void> _enableWifiServices(Object interface) async {
+    if (interface is FlutterP2pHost) {
+      await interface.enableWifiServices();
+    } else if (interface is FlutterP2pClient) {
+      await interface.enableWifiServices();
+    }
+  }
+
+  Future<bool> _checkLocationEnabled(Object interface) async {
+    if (interface is FlutterP2pHost) {
+      return interface.checkLocationEnabled();
+    } else if (interface is FlutterP2pClient) {
+      return interface.checkLocationEnabled();
+    }
+    return false;
+  }
+
+  Future<void> _enableLocationServices(Object interface) async {
+    if (interface is FlutterP2pHost) {
+      await interface.enableLocationServices();
+    } else if (interface is FlutterP2pClient) {
+      await interface.enableLocationServices();
+    }
+  }
+
+  Future<bool> _checkBluetoothEnabled(Object interface) async {
+    if (interface is FlutterP2pHost) {
+      return interface.checkBluetoothEnabled();
+    } else if (interface is FlutterP2pClient) {
+      return interface.checkBluetoothEnabled();
+    }
+    return false;
+  }
+
+  Future<void> _enableBluetoothServices(Object interface) async {
+    if (interface is FlutterP2pHost) {
+      await interface.enableBluetoothServices();
+    } else if (interface is FlutterP2pClient) {
+      await interface.enableBluetoothServices();
     }
   }
 
@@ -255,10 +351,10 @@ class P2pService {
   }
 
   Future<bool> _storagePermissionGranted({
-    required dynamic interface,
+    required Object interface,
     required bool requestIfMissing,
   }) async {
-    if (await interface.checkStoragePermission()) {
+    if (await _checkStoragePermission(interface)) {
       _logger.info('Storage permission already granted via plugin');
       return true;
     }
@@ -313,7 +409,7 @@ class P2pService {
       return false;
     }
 
-    if (await interface.checkStoragePermission()) {
+    if (await _checkStoragePermission(interface)) {
       _logger.info('Plugin now reports storage granted after media requests');
       return true;
     }
@@ -331,7 +427,7 @@ class P2pService {
       _logger.info('Unable to request Permission.storage: $e');
     }
 
-    final finalPluginCheck = await interface.checkStoragePermission();
+    final finalPluginCheck = await _checkStoragePermission(interface);
     _logger.info('Final plugin storage check result: $finalPluginCheck');
 
     return finalPluginCheck;

@@ -1,0 +1,5 @@
+{
+  "label": "Flutter Deep Analysis",
+  "type": "shell",
+  "command": "flutter analyze && dart format ."
+}

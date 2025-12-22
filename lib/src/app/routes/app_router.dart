@@ -6,6 +6,7 @@ import '../../features/chat/presentation/pages/chats_library_page.dart';
 import '../../features/chat/presentation/pages/conversation_mode_page.dart';
 import '../../features/home/presentation/pages/home_page.dart';
 import '../../features/onboarding/presentation/pages/onboarding_page.dart';
+import '../../features/settings/presentation/pages/profile_page.dart';
 import '../../features/settings/presentation/pages/settings_page.dart';
 
 class AppRouter {
@@ -17,6 +18,7 @@ class AppRouter {
     ConversationModePage.routeName: (_) => const ConversationModePage(),
     ChatsLibraryPage.routeName: (_) => const ChatsLibraryPage(),
     SettingsPage.routeName: (_) => const SettingsPage(),
+    ProfilePage.routeName: (_) => const ProfilePage(),
   };
 
   static Route<dynamic>? onGenerateRoute(RouteSettings settings) {
@@ -56,6 +58,11 @@ class AppRouter {
       case SettingsPage.routeName:
         return MaterialPageRoute<void>(
           builder: (_) => const SettingsPage(),
+          settings: settings,
+        );
+      case ProfilePage.routeName:
+        return MaterialPageRoute<void>(
+          builder: (_) => const ProfilePage(),
           settings: settings,
         );
       default:

@@ -1,10 +1,16 @@
+import 'package:drift/drift.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../core/database/app_database.dart';
 import '../../core/models/peer_identity.dart';
+import '../../core/services/chat_data_migration_service.dart';
 import '../../core/services/peer_identity_service.dart';
 import '../../core/utils/logger.dart';
 import '../../features/chat/data/datasources/chat_message_data_source.dart';
 import '../../features/chat/data/datasources/conversation_store.dart';
+import '../../features/chat/data/datasources/drift_chat_message_data_source.dart';
+import '../../features/chat/data/datasources/drift_chat_room_data_source.dart';
+import '../../features/chat/data/datasources/drift_conversation_data_source.dart';
 import '../../features/chat/data/repositories/chat_repository_impl.dart';
 import '../../features/chat/domain/entities/conversation.dart';
 import '../../features/chat/domain/repositories/chat_repository.dart';
@@ -22,6 +28,16 @@ class AppDependencies {
 
   final Logger _logger = const Logger('AppDependencies');
 
+  // Database
+  AppDatabase? _database;
+  ChatDataMigrationService? _migrationService;
+
+  // Drift data sources (SQLite-backed)
+  DriftChatMessageDataSource? _driftChatMessageDataSource;
+  DriftConversationDataSource? _driftConversationDataSource;
+  DriftChatRoomDataSource? _driftChatRoomDataSource;
+
+  // Legacy data sources (for migration compatibility)
   late final ChatMessageDataSource _chatMessageDataSource;
   late final ChatRepository _chatRepository;
   late final SendMessage _sendMessage;
@@ -31,13 +47,40 @@ class AppDependencies {
   late PeerIdentity _peerIdentity;
   late final ConversationStore _conversationStore;
   late final LatencyProbeService _latencyProbeService;
-  Map<String, String> _knownPeers = <String, String>{};
+  Map<String, PeerIdentity> _knownPeers = <String, PeerIdentity>{};
 
-  Future<void> init() async {
+  /// Initialize dependencies.
+  ///
+  /// Pass [executor] for testing with an in-memory database.
+  /// If null, uses the default file-based SQLite database.
+  Future<void> init({QueryExecutor? executor}) async {
     _logger.info('Initializing dependencies');
 
     final sharedPreferences = await SharedPreferences.getInstance();
 
+    // Initialize database (use provided executor for tests, or default)
+    if (executor != null) {
+      _database = AppDatabase(executor);
+    } else {
+      _database = AppDatabase();
+    }
+
+    // Run migration from SharedPreferences to SQLite
+    _migrationService = ChatDataMigrationService(
+      database: _database!,
+      sharedPreferences: sharedPreferences,
+    );
+    final migrationResult = await _migrationService!.migrate();
+    if (migrationResult.totalMigrated > 0) {
+      _logger.info('Migration completed: $migrationResult');
+    }
+
+    // Initialize drift data sources
+    _driftChatMessageDataSource = DriftChatMessageDataSource(_database!);
+    _driftConversationDataSource = DriftConversationDataSource(_database!);
+    _driftChatRoomDataSource = DriftChatRoomDataSource(_database!);
+
+    // Keep legacy data source for backward compatibility during transition
     _chatMessageDataSource = PersistentChatMessageDataSource(
       sharedPreferences: sharedPreferences,
     );
@@ -67,20 +110,29 @@ class AppDependencies {
       identity: _peerIdentity,
       conversation: conversation,
       conversationStore: _conversationStore,
-      rememberPeerName:
-          ({required String peerId, required String displayName}) async {
-            await rememberPeerName(peerId: peerId, displayName: displayName);
-          },
+      rememberPeer: (PeerIdentity identity) async {
+        await rememberPeer(identity);
+      },
       knownPeers: _knownPeers,
     );
   }
 
   P2pService get p2pService => _p2pService;
+  PeerIdentityService get peerIdentityService => _peerIdentityService;
   LatencyProbeService get latencyProbeService => _latencyProbeService;
 
+  // Database and drift data sources
+  AppDatabase? get database => _database;
+  DriftChatMessageDataSource? get driftChatMessageDataSource =>
+      _driftChatMessageDataSource;
+  DriftConversationDataSource? get driftConversationDataSource =>
+      _driftConversationDataSource;
+  DriftChatRoomDataSource? get driftChatRoomDataSource =>
+      _driftChatRoomDataSource;
+
   PeerIdentity get peerIdentity => _peerIdentity;
-  Map<String, String> get knownPeers =>
-      Map<String, String>.unmodifiable(_knownPeers);
+  Map<String, PeerIdentity> get knownPeers =>
+      Map<String, PeerIdentity>.unmodifiable(_knownPeers);
 
   ConversationStore get conversationStore => _conversationStore;
 
@@ -99,20 +151,12 @@ class AppDependencies {
         : trimmed;
     await _peerIdentityService.setDisplayName(effectiveName);
     _peerIdentity = _peerIdentity.copyWith(displayName: effectiveName);
-    _knownPeers[_peerIdentity.id] = effectiveName;
+    _knownPeers[_peerIdentity.id] = _peerIdentity;
     _latencyProbeService.updateIdentity(_peerIdentity);
   }
 
-  Future<void> rememberPeerName({
-    required String peerId,
-    required String displayName,
-  }) async {
-    final trimmed = displayName.trim();
-    await _peerIdentityService.rememberPeer(id: peerId, displayName: trimmed);
-    if (trimmed.isEmpty) {
-      _knownPeers.remove(peerId);
-    } else {
-      _knownPeers[peerId] = trimmed;
-    }
+  Future<void> rememberPeer(PeerIdentity identity) async {
+    await _peerIdentityService.rememberPeer(identity);
+    _knownPeers[identity.id] = identity;
   }
 }

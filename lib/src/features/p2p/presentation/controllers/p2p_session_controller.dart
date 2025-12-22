@@ -175,7 +175,7 @@ class P2pSessionController extends ChangeNotifier {
             _statusMessage ??= 'Scan finished.';
             notifyListeners();
           },
-          onError: (error) {
+          onError: (Object error) {
             _isScanning = false;
             _setError('Discovery error: $error');
           },
@@ -379,12 +379,12 @@ class P2pSessionController extends ChangeNotifier {
         unawaited(_announceActiveConversation());
       }
       notifyListeners();
-    }, onError: (error) => _setError('Host state stream error: $error'));
+    }, onError: (Object error) => _setError('Host state stream error: $error'));
 
     _hostTextSubscription?.cancel();
     _hostTextSubscription = host.streamReceivedTexts().listen(
       _handleIncomingText,
-      onError: (error) {
+      onError: (Object error) {
         _setError('Host text stream error: $error');
       },
     );
@@ -392,15 +392,18 @@ class P2pSessionController extends ChangeNotifier {
 
   void _listenToClient(FlutterP2pClient client) {
     _clientStateSubscription?.cancel();
-    _clientStateSubscription = client.streamHotspotState().listen((state) {
-      _clientState = state;
-      notifyListeners();
-    }, onError: (error) => _setError('Client state stream error: $error'));
+    _clientStateSubscription = client.streamHotspotState().listen(
+      (state) {
+        _clientState = state;
+        notifyListeners();
+      },
+      onError: (Object error) => _setError('Client state stream error: $error'),
+    );
 
     _clientTextSubscription?.cancel();
     _clientTextSubscription = client.streamReceivedTexts().listen(
       _handleIncomingText,
-      onError: (error) => _setError('Client text stream error: $error'),
+      onError: (Object error) => _setError('Client text stream error: $error'),
     );
   }
 

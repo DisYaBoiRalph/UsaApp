@@ -8,15 +8,37 @@ import '../models/peer_identity.dart';
 class PeerIdentityService {
   static const String _idKey = 'peer_identity_id';
   static const String _nameKey = 'peer_identity_display_name';
-  static const String _knownPeersKey = 'peer_identity_known_peers_v1';
+  static const String _fullNameKey = 'peer_identity_full_name';
+  static const String _profileImageKey = 'peer_identity_profile_image';
+  static const String _groupNameKey = 'peer_identity_group_name';
+  static const String _roleKey = 'peer_identity_role';
+  static const String _knownPeersKey = 'peer_identity_known_peers_v2';
 
-  final Map<String, String> _knownPeersCache = <String, String>{};
+  final Map<String, PeerIdentity> _knownPeersCache = <String, PeerIdentity>{};
 
   Future<PeerIdentity> getIdentity() async {
     final prefs = await SharedPreferences.getInstance();
     final id = await _ensureId(prefs);
-    final name = prefs.getString(_nameKey) ?? _defaultDisplayName(id);
-    return PeerIdentity(id: id, displayName: name);
+    final displayName = prefs.getString(_nameKey) ?? _defaultDisplayName(id);
+    final name = prefs.getString(_fullNameKey);
+    final profileImage = prefs.getString(_profileImageKey);
+    final groupName = prefs.getString(_groupNameKey);
+    final roleString = prefs.getString(_roleKey);
+    final role = roleString != null
+        ? UserRole.values.firstWhere(
+            (e) => e.name == roleString,
+            orElse: () => UserRole.other,
+          )
+        : UserRole.other;
+
+    return PeerIdentity(
+      id: id,
+      displayName: displayName,
+      name: name,
+      profileImage: profileImage,
+      groupName: groupName,
+      role: role,
+    );
   }
 
   Future<void> setDisplayName(String name) async {
@@ -24,32 +46,60 @@ class PeerIdentityService {
     await prefs.setString(_nameKey, name.trim());
   }
 
+  Future<void> updateProfile({
+    String? name,
+    String? profileImage,
+    String? groupName,
+    UserRole? role,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+
+    if (name != null) {
+      if (name.isEmpty) {
+        await prefs.remove(_fullNameKey);
+      } else {
+        await prefs.setString(_fullNameKey, name.trim());
+      }
+    }
+    if (profileImage != null) {
+      if (profileImage.isEmpty) {
+        await prefs.remove(_profileImageKey);
+      } else {
+        await prefs.setString(_profileImageKey, profileImage);
+      }
+    }
+    if (groupName != null) {
+      if (groupName.isEmpty) {
+        await prefs.remove(_groupNameKey);
+      } else {
+        await prefs.setString(_groupNameKey, groupName.trim());
+      }
+    }
+    if (role != null) {
+      await prefs.setString(_roleKey, role.name);
+    }
+  }
+
   String defaultDisplayName(String id) => _defaultDisplayName(id);
 
-  Future<void> rememberPeer({
-    required String id,
-    required String displayName,
-  }) async {
-    if (id.isEmpty) {
+  Future<void> rememberPeer(PeerIdentity identity) async {
+    if (identity.id.isEmpty) {
       return;
     }
     final prefs = await SharedPreferences.getInstance();
     final cache = await _loadKnownPeers(prefs);
-    final trimmed = displayName.trim();
-    if (trimmed.isEmpty) {
-      cache.remove(id);
-    } else {
-      cache[id] = trimmed;
-    }
+    cache[identity.id] = identity;
     await _persistKnownPeers(prefs, cache);
   }
 
-  Future<Map<String, String>> getKnownPeers() async {
+  Future<Map<String, PeerIdentity>> getKnownPeers() async {
     final prefs = await SharedPreferences.getInstance();
-    return Map<String, String>.unmodifiable(await _loadKnownPeers(prefs));
+    return Map<String, PeerIdentity>.unmodifiable(await _loadKnownPeers(prefs));
   }
 
-  Future<Map<String, String>> _loadKnownPeers(SharedPreferences prefs) async {
+  Future<Map<String, PeerIdentity>> _loadKnownPeers(
+    SharedPreferences prefs,
+  ) async {
     if (_knownPeersCache.isNotEmpty) {
       return _knownPeersCache;
     }
@@ -59,8 +109,15 @@ class PeerIdentityService {
         final decoded = jsonDecode(raw);
         if (decoded is Map) {
           decoded.forEach((key, value) {
-            if (key is String && value is String) {
-              _knownPeersCache[key] = value;
+            if (key is String && value is Map) {
+              try {
+                final identity = PeerIdentity.fromJson(
+                  value.cast<String, dynamic>(),
+                );
+                _knownPeersCache[key] = identity;
+              } catch (_) {
+                // Skip invalid entries
+              }
             }
           });
         }
@@ -73,9 +130,10 @@ class PeerIdentityService {
 
   Future<void> _persistKnownPeers(
     SharedPreferences prefs,
-    Map<String, String> cache,
+    Map<String, PeerIdentity> cache,
   ) async {
-    await prefs.setString(_knownPeersKey, jsonEncode(cache));
+    final jsonMap = cache.map((key, value) => MapEntry(key, value.toJson()));
+    await prefs.setString(_knownPeersKey, jsonEncode(jsonMap));
   }
 
   Future<String> _ensureId(SharedPreferences prefs) async {

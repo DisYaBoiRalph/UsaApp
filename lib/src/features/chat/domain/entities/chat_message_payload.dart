@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import '../../../../core/models/peer_identity.dart';
 import 'chat_message.dart';
 
 class ChatMessagePayload {
@@ -11,6 +12,10 @@ class ChatMessagePayload {
     required this.senderName,
     required this.content,
     required this.sentAt,
+    this.senderFullName,
+    this.senderRole,
+    this.senderGroupName,
+    this.senderProfileImageBase64,
   });
 
   final String id;
@@ -21,11 +26,18 @@ class ChatMessagePayload {
   final String content;
   final DateTime sentAt;
 
-  static const int _protocolVersion = 1;
+  // Profile information
+  final String? senderFullName;
+  final String? senderRole; // Stored as string for serialization
+  final String? senderGroupName;
+  final String? senderProfileImageBase64;
+
+  static const int _protocolVersion = 2; // Incremented for profile support
 
   factory ChatMessagePayload.fromChatMessage(
     ChatMessage message, {
     required String conversationTitle,
+    PeerIdentity? senderIdentity,
   }) {
     return ChatMessagePayload(
       id: message.id,
@@ -35,6 +47,10 @@ class ChatMessagePayload {
       senderName: message.sender,
       content: message.content,
       sentAt: message.sentAt,
+      senderFullName: senderIdentity?.name,
+      senderRole: senderIdentity?.role.name,
+      senderGroupName: senderIdentity?.groupName,
+      senderProfileImageBase64: senderIdentity?.profileImage,
     );
   }
 
@@ -49,6 +65,23 @@ class ChatMessagePayload {
     );
   }
 
+  /// Extracts PeerIdentity from the payload's sender information
+  PeerIdentity getSenderIdentity() {
+    return PeerIdentity(
+      id: senderId,
+      displayName: senderName,
+      name: senderFullName,
+      role: senderRole != null
+          ? UserRole.values.firstWhere(
+              (e) => e.name == senderRole,
+              orElse: () => UserRole.other,
+            )
+          : UserRole.other,
+      groupName: senderGroupName,
+      profileImage: senderProfileImageBase64,
+    );
+  }
+
   Map<String, dynamic> toJson() {
     return <String, dynamic>{
       'v': _protocolVersion,
@@ -59,6 +92,11 @@ class ChatMessagePayload {
       'senderName': senderName,
       'content': content,
       'sentAt': sentAt.toUtc().toIso8601String(),
+      if (senderFullName != null) 'senderFullName': senderFullName,
+      if (senderRole != null) 'senderRole': senderRole,
+      if (senderGroupName != null) 'senderGroupName': senderGroupName,
+      if (senderProfileImageBase64 != null)
+        'senderProfileImageBase64': senderProfileImageBase64,
     };
   }
 
@@ -72,7 +110,7 @@ class ChatMessagePayload {
       }
 
       final version = decoded['v'];
-      if (version is! num || version.toInt() != _protocolVersion) {
+      if (version is! num || (version.toInt() != 1 && version.toInt() != 2)) {
         return null;
       }
 
@@ -101,6 +139,13 @@ class ChatMessagePayload {
           ? conversationTitleRaw
           : 'Conversation';
 
+      // Extract profile fields (only in v2)
+      final senderFullName = decoded['senderFullName'] as String?;
+      final senderRole = decoded['senderRole'] as String?;
+      final senderGroupName = decoded['senderGroupName'] as String?;
+      final senderProfileImageBase64 =
+          decoded['senderProfileImageBase64'] as String?;
+
       return ChatMessagePayload(
         id: id,
         conversationId: conversationId,
@@ -109,6 +154,10 @@ class ChatMessagePayload {
         senderName: senderName,
         content: content,
         sentAt: DateTime.tryParse(sentAt)?.toUtc() ?? DateTime.now().toUtc(),
+        senderFullName: senderFullName,
+        senderRole: senderRole,
+        senderGroupName: senderGroupName,
+        senderProfileImageBase64: senderProfileImageBase64,
       );
     } catch (_) {
       return null;

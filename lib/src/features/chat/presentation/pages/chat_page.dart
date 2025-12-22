@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../../../app/di/app_dependencies.dart';
+import '../../../../core/widgets/profile_avatar.dart';
 import '../../../p2p/data/services/p2p_service.dart';
 import '../../../p2p/presentation/controllers/p2p_session_controller.dart';
 import '../../../p2p/presentation/widgets/latency_diagnostics_sheet.dart';
@@ -190,9 +191,6 @@ class _ChatPageState extends State<ChatPage> {
           itemCount: _controller.messages.length,
           itemBuilder: (context, index) {
             final message = _controller.messages[index];
-            final alignment = message.isLocal
-                ? Alignment.centerRight
-                : Alignment.centerLeft;
             final scheme = Theme.of(context).colorScheme;
             final backgroundColor = message.isLocal
                 ? scheme.primaryContainer
@@ -201,47 +199,64 @@ class _ChatPageState extends State<ChatPage> {
                 ? scheme.onPrimaryContainer
                 : scheme.onSurfaceVariant;
 
-            return Align(
-              alignment: alignment,
-              child: Container(
-                margin: const EdgeInsets.symmetric(vertical: 6),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 8,
-                ),
-                decoration: BoxDecoration(
-                  color: backgroundColor,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: <Widget>[
-                    Text(
-                      message.displaySender,
-                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                        color: _scaledAlpha(textColor, 0.8),
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      message.content,
-                      style: Theme.of(
-                        context,
-                      ).textTheme.bodyMedium?.copyWith(color: textColor),
-                    ),
-                    const SizedBox(height: 4),
-                    Align(
-                      alignment: Alignment.centerRight,
-                      child: Text(
-                        message.sentAtFormatted,
-                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                          color: _scaledAlpha(textColor, 0.7),
-                        ),
-                      ),
-                    ),
+            return Padding(
+              padding: const EdgeInsets.symmetric(vertical: 6),
+              child: Row(
+                mainAxisAlignment: message.isLocal
+                    ? MainAxisAlignment.end
+                    : MainAxisAlignment.start,
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  if (!message.isLocal) ...[
+                    ProfileAvatar(identity: message.senderIdentity, size: 32),
+                    const SizedBox(width: 8),
                   ],
-                ),
+                  Flexible(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
+                      decoration: BoxDecoration(
+                        color: backgroundColor,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: <Widget>[
+                          Text(
+                            message.displaySender,
+                            style: Theme.of(context).textTheme.labelSmall
+                                ?.copyWith(color: _scaledAlpha(textColor, 0.8)),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            message.content,
+                            style: Theme.of(
+                              context,
+                            ).textTheme.bodyMedium?.copyWith(color: textColor),
+                          ),
+                          const SizedBox(height: 4),
+                          Align(
+                            alignment: Alignment.centerRight,
+                            child: Text(
+                              message.sentAtFormatted,
+                              style: Theme.of(context).textTheme.labelSmall
+                                  ?.copyWith(
+                                    color: _scaledAlpha(textColor, 0.7),
+                                  ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  if (message.isLocal) ...[
+                    const SizedBox(width: 8),
+                    ProfileAvatar(identity: message.senderIdentity, size: 32),
+                  ],
+                ],
               ),
             );
           },
@@ -280,6 +295,7 @@ class _ChatPageState extends State<ChatPage> {
     final payload = ChatMessagePayload.fromChatMessage(
       message,
       conversationTitle: _controller.conversation.title,
+      senderIdentity: AppDependencies.instance.peerIdentity,
     );
     await _p2pController.sendChatMessage(payload);
   }

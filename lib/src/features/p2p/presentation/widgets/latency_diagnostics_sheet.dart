@@ -1,7 +1,8 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
+import 'package:file_picker/file_picker.dart';
 
 import '../../../../app/di/app_dependencies.dart';
 import '../../data/services/latency_probe_service.dart';
@@ -99,9 +100,9 @@ class _LatencyDiagnosticsSheetState extends State<LatencyDiagnosticsSheet> {
                                 },
                         ),
                         IconButton(
-                          icon: const Icon(Icons.copy_all_outlined),
-                          tooltip: 'Copy CSV',
-                          onPressed: _samples.isEmpty ? null : _copyCsv,
+                          icon: const Icon(Icons.save_outlined),
+                          tooltip: 'Save CSV',
+                          onPressed: _samples.isEmpty ? null : _saveCsv,
                         ),
                       ],
                     ),
@@ -199,15 +200,46 @@ class _LatencyDiagnosticsSheetState extends State<LatencyDiagnosticsSheet> {
     }
   }
 
-  Future<void> _copyCsv() async {
-    final csv = _service.exportCsv();
-    await Clipboard.setData(ClipboardData(text: csv));
-    if (!mounted) {
-      return;
+  Future<void> _saveCsv() async {
+    try {
+      final csv = _service.exportCsv();
+      final timestamp = DateTime.now()
+          .toIso8601String()
+          .replaceAll(':', '-')
+          .split('.')[0];
+      final defaultFileName = 'latency_diagnostics_$timestamp.csv';
+
+      final path = await FilePicker.platform.saveFile(
+        dialogTitle: 'Save latency diagnostics',
+        fileName: defaultFileName,
+        type: FileType.custom,
+        allowedExtensions: ['csv'],
+      );
+
+      if (path == null) {
+        return; // User cancelled
+      }
+
+      final file = File(path);
+      await file.writeAsString(csv);
+
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Saved to ${file.path}')));
+    } catch (e) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to save file: $e'),
+          backgroundColor: Theme.of(context).colorScheme.error,
+        ),
+      );
     }
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Copied results to clipboard.')),
-    );
   }
 }
 
@@ -221,7 +253,7 @@ class _ResultsList extends StatelessWidget {
     return ListView.separated(
       shrinkWrap: true,
       itemCount: samples.length,
-      separatorBuilder: (_, __) => const Divider(height: 1),
+      separatorBuilder: (_, _) => const Divider(height: 1),
       itemBuilder: (context, index) {
         final sample = samples[samples.length - index - 1];
         return ListTile(

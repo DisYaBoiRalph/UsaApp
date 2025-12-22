@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../chat/presentation/pages/conversation_mode_page.dart';
 import '../../../chat/presentation/pages/chats_library_page.dart';
+import '../../../settings/presentation/pages/profile_page.dart';
 import '../../../settings/presentation/pages/settings_page.dart';
 
 class HomePage extends StatelessWidget {
@@ -40,9 +41,15 @@ class HomePage extends StatelessWidget {
                 Navigator.of(context).pushNamed(ConversationModePage.routeName),
           ),
           _DestinationTile(
+            icon: Icons.person_outlined,
+            title: 'Profile',
+            subtitle: 'Edit your name, profile image, group, and role.',
+            onTap: () => Navigator.of(context).pushNamed(ProfilePage.routeName),
+          ),
+          _DestinationTile(
             icon: Icons.settings_outlined,
             title: 'Settings',
-            subtitle: 'Adjust preferences before you enable peer-to-peer mode.',
+            subtitle: 'Adjust P2P permissions and services.',
             onTap: () =>
                 Navigator.of(context).pushNamed(SettingsPage.routeName),
           ),

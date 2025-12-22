@@ -353,7 +353,7 @@ class _ConversationPickerSheetState extends State<_ConversationPickerSheet> {
                       return ListView.separated(
                         padding: EdgeInsets.zero,
                         itemCount: conversations.length,
-                        separatorBuilder: (_, __) => const SizedBox(height: 8),
+                        separatorBuilder: (_, _) => const SizedBox(height: 8),
                         itemBuilder: (context, index) {
                           final conversation = conversations[index];
                           final isSelected =
@@ -756,7 +756,7 @@ class _DiscoveredDevicesList extends StatelessWidget {
 
     return ListView.separated(
       itemCount: devices.length,
-      separatorBuilder: (_, __) => const Divider(height: 1),
+      separatorBuilder: (_, _) => const Divider(height: 1),
       itemBuilder: (context, index) {
         final device = devices[index];
         return ListTile(

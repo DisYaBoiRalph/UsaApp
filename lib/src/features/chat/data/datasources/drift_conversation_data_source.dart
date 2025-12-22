@@ -1,0 +1,97 @@
+import 'dart:async';
+
+import '../../../../core/database/app_database.dart';
+import '../../domain/entities/conversation.dart';
+
+/// Data source for conversations using drift (SQLite).
+///
+/// Replaces [ConversationStore] with SQLite-backed storage.
+class DriftConversationDataSource {
+  DriftConversationDataSource(this._db);
+
+  final AppDatabase _db;
+
+  /// Watch all conversations ordered by last updated.
+  Stream<List<Conversation>> watchAll() {
+    return _db.watchAllConversations().map(
+      (entries) => entries.map(_entryToConversation).toList(growable: false),
+    );
+  }
+
+  /// Get a conversation by ID.
+  Future<Conversation?> getConversationById(String id) async {
+    final entry = await _db.getConversationById(id);
+    return entry != null ? _entryToConversation(entry) : null;
+  }
+
+  /// Save a conversation.
+  Future<void> saveConversation(Conversation conversation) {
+    return _db.upsertConversation(_conversationToEntry(conversation));
+  }
+
+  /// Save multiple conversations in batch (for migration).
+  Future<void> saveConversationsBatch(List<Conversation> conversations) async {
+    for (final conv in conversations) {
+      await _db.upsertConversation(_conversationToEntry(conv));
+    }
+  }
+
+  /// Delete a conversation and its messages.
+  Future<void> deleteConversation(String id) {
+    return _db.deleteConversation(id);
+  }
+
+  /// Ensure a conversation exists, creating if needed.
+  Future<Conversation> ensureConversationExists({
+    required String id,
+    required String title,
+  }) async {
+    final existing = await _db.getConversationById(id);
+    final now = DateTime.now().toUtc();
+
+    if (existing != null) {
+      if (title.trim().isNotEmpty && existing.title != title.trim()) {
+        final updated = Conversation(
+          id: existing.id,
+          title: title.trim(),
+          createdAt: existing.createdAt,
+          updatedAt: now,
+        );
+        await _db.upsertConversation(_conversationToEntry(updated));
+        return updated;
+      }
+      return _entryToConversation(existing);
+    }
+
+    final newConversation = Conversation(
+      id: id,
+      title: title.trim().isEmpty ? 'Conversation' : title.trim(),
+      createdAt: now,
+      updatedAt: now,
+    );
+    await _db.upsertConversation(_conversationToEntry(newConversation));
+    return newConversation;
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // CONVERTERS
+  // ─────────────────────────────────────────────────────────────────────────
+
+  Conversation _entryToConversation(ConversationEntry entry) {
+    return Conversation(
+      id: entry.id,
+      title: entry.title,
+      createdAt: entry.createdAt,
+      updatedAt: entry.updatedAt,
+    );
+  }
+
+  ConversationEntry _conversationToEntry(Conversation conversation) {
+    return ConversationEntry(
+      id: conversation.id,
+      title: conversation.title,
+      createdAt: conversation.createdAt,
+      updatedAt: conversation.updatedAt,
+    );
+  }
+}

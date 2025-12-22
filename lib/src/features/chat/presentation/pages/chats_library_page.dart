@@ -51,7 +51,7 @@ class _ChatsLibraryPageState extends State<ChatsLibraryPage> {
           return ListView.separated(
             padding: const EdgeInsets.all(16),
             itemCount: conversations.length,
-            separatorBuilder: (_, __) => const SizedBox(height: 8),
+            separatorBuilder: (_, _) => const SizedBox(height: 8),
             itemBuilder: (context, index) {
               final conversation = conversations[index];
               return Card(
