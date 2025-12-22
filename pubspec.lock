@@ -321,7 +321,7 @@ packages:
   flutter_p2p_connection:
     dependency: "direct main"
     description:
-      path: "../flutter_p2p_connection"
+      path: "flutter_p2p_connection"
       relative: true
     source: path
     version: "3.0.3"
